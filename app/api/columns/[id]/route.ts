@@ -1,0 +1,120 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getServerAuthSession } from "@/server/auth";
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerAuthSession();
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { order } = body;
+
+    // Verify column exists and get board info
+    const existingColumn = await db.column.findUnique({
+      where: { id },
+      include: {
+        board: true,
+      },
+    });
+
+    if (!existingColumn) {
+      return NextResponse.json(
+        { error: "Column not found" },
+        { status: 404 }
+      );
+    }
+
+    // Strict ownership check: verify board belongs to user
+    if (existingColumn.board.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Forbidden: You can only edit your own columns" },
+        { status: 403 }
+      );
+    }
+
+    // If order is not provided, return existing column
+    if (order === undefined) {
+      return NextResponse.json(existingColumn);
+    }
+
+    // Validate order is a number
+    const newOrder = typeof order === "number" ? Math.max(0, order) : existingColumn.order;
+
+    // Get all columns in the same board (excluding the one being moved)
+    const allColumns = await db.column.findMany({
+      where: {
+        boardId: existingColumn.boardId,
+        id: { not: id },
+      },
+      orderBy: { order: "asc" },
+    });
+
+    const oldOrder = existingColumn.order;
+    
+    // Ensure newOrder is within valid range
+    let adjustedOrder = Math.max(0, Math.min(newOrder, allColumns.length));
+
+    // If order hasn't changed, return existing column
+    if (oldOrder === adjustedOrder) {
+      return NextResponse.json(existingColumn);
+    }
+
+    // Shift orders for other columns based on direction of move
+    if (oldOrder < adjustedOrder) {
+      // Moving right/down - decrement orders of columns between old and new position
+      await db.column.updateMany({
+        where: {
+          boardId: existingColumn.boardId,
+          order: { gt: oldOrder, lte: adjustedOrder },
+          id: { not: id },
+        },
+        data: {
+          order: { decrement: 1 },
+        },
+      });
+    } else if (oldOrder > adjustedOrder) {
+      // Moving left/up - increment orders of columns between new and old position
+      await db.column.updateMany({
+        where: {
+          boardId: existingColumn.boardId,
+          order: { gte: adjustedOrder, lt: oldOrder },
+          id: { not: id },
+        },
+        data: {
+          order: { increment: 1 },
+        },
+      });
+    }
+
+    // Update the column's order
+    const updatedColumn = await db.column.update({
+      where: { id },
+      data: { order: adjustedOrder },
+      include: {
+        board: true,
+        tasks: {
+          orderBy: { order: "asc" },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedColumn);
+  } catch (error) {
+    console.error("Error updating column:", error);
+    return NextResponse.json(
+      { error: "Failed to update column" },
+      { status: 500 }
+    );
+  }
+}
