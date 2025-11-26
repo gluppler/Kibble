@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkColumnPermission } from "@/lib/permissions";
 
+// Optimize for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

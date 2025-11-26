@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
 
+// Optimize for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 export async function GET() {
   try {
     const session = await getServerAuthSession();

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 
+// Optimize for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 export async function GET() {
   try {
     const session = await getServerAuthSession();

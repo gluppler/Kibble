@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 
+// Optimize for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 /**
  * API route to clean up tasks in "Done" column that are older than 24 hours
  * This should be called periodically (e.g., via cron job or scheduled task)

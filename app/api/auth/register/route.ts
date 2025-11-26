@@ -24,6 +24,11 @@ const registerSchema = z.object({
     .max(200, "Password is too long"),
 });
 
+// Optimize for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 /**
  * POST /api/auth/register
  * 

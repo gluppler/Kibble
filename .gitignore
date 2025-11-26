@@ -37,3 +37,8 @@ next-env.d.ts
 
 # prisma
 /generated
+*.prisma.bak
+
+# Vercel
+.vercel
+.vercel.json
