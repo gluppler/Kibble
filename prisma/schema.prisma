@@ -37,17 +37,21 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  password      String?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  boards        Board[]
-  sessions      Session[]
+  id                  String               @id @default(cuid())
+  name                String?
+  email               String               @unique
+  emailVerified       DateTime?
+  password            String?
+  image               String?
+  mfaEnabled          Boolean              @default(false)
+  mfaSecret           String? // Encrypted TOTP secret (server-side only)
+  mfaBackupCodes      String? // Hashed backup codes (comma-separated)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  accounts            Account[]
+  boards              Board[]
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model VerificationToken {
@@ -56,6 +60,20 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expires   DateTime
+  used      Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@index([expires])
 }
 
 model Board {
@@ -84,17 +102,17 @@ model Column {
 }
 
 model Task {
-  id           String    @id @default(cuid())
-  title        String
-  description  String?
-  dueDate      DateTime?
-  order        Int       @default(0)
-  columnId     String
-  locked       Boolean   @default(false)
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  dueDate       DateTime?
+  order         Int       @default(0)
+  columnId      String
+  locked        Boolean   @default(false)
   movedToDoneAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  column       Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  column        Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
 
   @@index([columnId])
   @@index([dueDate])

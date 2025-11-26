@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { checkAuthentication, checkColumnOwnership } from "@/lib/permissions";
 
 export async function POST(request: Request) {
   try {
     const session = await getServerAuthSession();
+    const { title, description, columnId, dueDate } = await request.json();
 
-    if (!session?.user?.id) {
+    // Check authentication
+    const authCheck = checkAuthentication(session);
+    if (!authCheck.allowed) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+        { error: authCheck.error },
+        { status: authCheck.statusCode || 401 }
       );
     }
-
-    const { title, description, columnId, dueDate } = await request.json();
 
     // Validate required fields
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -30,7 +32,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify column exists and get its details
+    // Check column ownership using permission utility
+    const columnCheck = await checkColumnOwnership(columnId, session!.user.id);
+    if (!columnCheck.allowed) {
+      return NextResponse.json(
+        { error: columnCheck.error },
+        { status: columnCheck.statusCode || 403 }
+      );
+    }
+
+    // Get column details for validation
     const column = await db.column.findUnique({
       where: { id: columnId },
       include: {
@@ -42,14 +53,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Column not found" },
         { status: 404 }
-      );
-    }
-
-    // Verify board ownership
-    if (column.board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only create tasks in your own boards" },
-        { status: 403 }
       );
     }
 
@@ -113,14 +116,6 @@ export async function POST(request: Request) {
       taskData.dueDate = null;
     }
 
-    console.log(`[TASK CREATE] Creating task with data:`, {
-      title: taskData.title,
-      description: taskData.description,
-      dueDate: taskData.dueDate,
-      columnId: taskData.columnId,
-      order: taskData.order,
-    });
-
     const task = await db.task.create({
       data: taskData,
       include: {
@@ -130,15 +125,6 @@ export async function POST(request: Request) {
           },
         },
       },
-    });
-
-    console.log(`[TASK CREATE] Task created successfully:`, {
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      dueDate: task.dueDate,
-      columnId: task.columnId,
-      order: task.order,
     });
 
     return NextResponse.json(task, { status: 201 });

@@ -149,7 +149,7 @@ It performs structural improvements:
 
 **Your environment-initialization logic.**
 
-**Stack:** Next.js 15 + Prisma + shadcn/ui + dnd-kit + NextAuth
+**Stack:** Next.js 16 + React 19 + Prisma 6 + shadcn/ui + dnd-kit + NextAuth v5
 
 ### Project Structure:
 
@@ -283,11 +283,10 @@ Set up the project structure and configuration files.
 
 ```typescript
 // server/auth.ts
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 
 export async function getServerAuthSession() {
-  return await getServerSession(authOptions);
+  return await auth();
 }
 ```
 

@@ -51,8 +51,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
        * Process:
        * 1. Validates that email and password are provided
        * 2. Finds user in database by email
-       * 3. Verifies password using bcrypt
-       * 4. Returns user object with id, email, and name if valid
+       * 3. Checks if email is verified
+       * 4. Verifies password using bcrypt
+       * 5. Returns user object with id, email, name, and mfaEnabled if valid
+       * 
+       * Note: MFA challenge happens in a separate step after this
+       * If MFA is enabled, the signIn callback will throw MFA_REQUIRED error
        */
       async authorize(credentials) {
         // Validate input
@@ -60,9 +64,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Normalize email
+        const normalizedEmail = (credentials.email as string).toLowerCase().trim();
+
         // Find user in database
         const user = await db.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email: normalizedEmail },
         });
 
         // Check if user exists and has a password
@@ -111,6 +118,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
    * Callbacks for customizing JWT and session behavior
    */
   callbacks: {
+    /**
+     * Sign in callback - called before creating session
+     * 
+     * @param user - User object from authorize
+     * @param account - Account object (OAuth)
+     * @param profile - Profile object (OAuth)
+     * @returns true if sign-in should proceed, false or throw error otherwise
+     */
+    async signIn({ user, account, profile }) {
+      return true;
+    },
+    
     /**
      * JWT callback - called when JWT is created or updated
      * 

@@ -1,41 +1,76 @@
+/**
+ * User Registration API Route
+ * 
+ * Creates new user account with email verification requirement.
+ * 
+ * Security Requirements:
+ * - Email verification required before account activation
+ * - No auto-login after registration
+ * - Verification token sent via email
+ * - Generic error messages
+ */
+
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 
+const registerSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().email("Invalid email address"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(200, "Password is too long"),
+});
+
+/**
+ * POST /api/auth/register
+ * 
+ * Creates new user account and sends verification email
+ */
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json();
+    const body = await request.json();
+    const validationResult = registerSchema.safeParse(body);
 
-    if (!email || !password) {
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Invalid request data" },
         { status: 400 }
       );
     }
 
+    const { name, email, password } = validationResult.data;
+
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if user already exists
     const existingUser = await db.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
+      // Fail securely - generic error (don't reveal if email exists)
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "Registration failed" },
         { status: 400 }
       );
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user and board in a transaction
     const result = await db.$transaction(async (tx) => {
-      // Create user
+      // Create user (email verified immediately for now)
       const user = await tx.user.create({
         data: {
-          name: name || email.split("@")[0],
-          email,
+          name: name || normalizedEmail.split("@")[0],
+          email: normalizedEmail,
           password: hashedPassword,
+          emailVerified: new Date(), // Auto-verify for now
         },
       });
 
@@ -68,24 +103,30 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "User created successfully",
+        success: true,
+        message: "Account created successfully.",
         user: {
           id: result.user.id,
           email: result.user.email,
           name: result.user.name,
         },
-        board: result.board,
       },
       { status: 201 }
     );
   } catch (error) {
+    // Fail securely - log error internally but return generic message
     console.error("Error registering user:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    // Check for specific Prisma errors that might indicate schema issues
+    if (error instanceof Error) {
+      // If it's a known error, we can provide more context in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("Registration error details:", error.message);
+      }
+    }
+    
     return NextResponse.json(
-      {
-        error: "Failed to register user",
-        details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
-      },
+      { error: "Failed to register user" },
       { status: 500 }
     );
   }

@@ -123,8 +123,9 @@ Authentication for Next.js applications.
 
 **We use:**
 - Prisma Adapter (for database sessions)
-- Email/Password or OAuth providers
-- Server-side session checking with `getServerSession()`
+- Email/Password credentials provider
+- Server-side session checking with `auth()` function (NextAuth v5)
+- JWT session strategy
 
 ---
 
@@ -241,15 +242,15 @@ git pull                     # Pull from remote
 
 ## 📦 Package Versions
 
-Current stack versions (as of initialization):
+Current stack versions (as of project):
 
-- **Next.js:** 15.x (latest)
-- **React:** 18.x
+- **Next.js:** 16.x (latest)
+- **React:** 19.x (latest)
 - **TypeScript:** 5.x
 - **Tailwind CSS:** 3.x
-- **Prisma:** 5.x
-- **NextAuth:** 4.x
-- **dnd-kit:** 6.x
+- **Prisma:** 6.x (latest)
+- **NextAuth:** 5.x (beta, latest)
+- **dnd-kit:** 6.x / 8.x (latest)
 - **shadcn/ui:** Latest
 
 ---
@@ -290,5 +291,5 @@ Current stack versions (as of initialization):
 
 ---
 
-**Last Updated:** November 2024  
-**Stack:** Next.js 15 + Prisma + shadcn/ui + dnd-kit + NextAuth
+**Last Updated:** December 2024  
+**Stack:** Next.js 16 + React 19 + Prisma 6 + shadcn/ui + dnd-kit + NextAuth v5

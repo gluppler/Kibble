@@ -11,6 +11,7 @@ import {
   Moon,
   LogOut,
   User,
+  Settings,
   Edit2,
   Trash2,
   MoreVertical,
@@ -18,6 +19,7 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/contexts/theme-context";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface Board {
   id: string;
@@ -46,9 +48,10 @@ export function Sidebar({
   const { data: session } = useSession();
   const router = useRouter();
 
-  // Create a component for each board item to manage its own menu state
+  // Create a component for each board item
   const BoardItem = ({ board }: { board: Board }) => {
     const [showMenu, setShowMenu] = useState(false);
+
     return (
       <div
         className="group relative"
@@ -61,38 +64,53 @@ export function Sidebar({
           }}
           whileHover={{ x: 4 }}
           whileTap={{ scale: 0.98 }}
-          className={`w-full text-left px-3 py-2.5 rounded-lg transition-all cursor-pointer ${
+          className={`w-full text-left px-3 py-2.5 rounded-lg transition-all cursor-pointer font-bold ${
             currentBoardId === board.id
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium shadow-sm"
-              : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              ? "bg-black dark:bg-white text-white dark:text-black shadow-sm"
+              : "text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10"
           }`}
         >
           <div className="flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
                 currentBoardId === board.id
-                  ? "bg-blue-600 dark:bg-blue-400"
-                  : "bg-gray-400 dark:bg-gray-500"
+                  ? "bg-white dark:bg-black"
+                  : "bg-black/30 dark:bg-white/30"
               }`}
             />
-            <span className="text-sm truncate flex-1">{board.title}</span>
+            <span className="text-xs sm:text-sm truncate flex-1">{board.title}</span>
             {(onBoardEdit || onBoardDelete) && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMenu(!showMenu);
-                }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-opacity flex-shrink-0"
-                aria-label="Board options"
-                type="button"
-              >
-                <MoreVertical size={14} className="text-gray-500 dark:text-gray-400" />
-              </button>
+              <div className="relative z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setShowMenu(!showMenu);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className={`p-1.5 rounded transition-all flex-shrink-0 opacity-100 ${
+                    currentBoardId === board.id
+                      ? "hover:bg-white/20 dark:hover:bg-black/20"
+                      : "hover:bg-black/10 dark:hover:bg-white/10"
+                  }`}
+                  aria-label="Board options"
+                  type="button"
+                >
+                  <MoreVertical
+                    size={16}
+                    className={
+                      currentBoardId === board.id
+                        ? "text-white dark:text-black"
+                        : "text-black dark:text-white"
+                    }
+                  />
+                </button>
+              </div>
             )}
           </div>
         </motion.div>
         {showMenu && (
-          <div className="absolute right-0 top-10 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[120px]">
+          <div className="absolute right-0 top-10 z-50 bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[140px]">
             {onBoardEdit && (
               <button
                 onClick={(e) => {
@@ -100,7 +118,7 @@ export function Sidebar({
                   setShowMenu(false);
                   onBoardEdit(board);
                 }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
                 type="button"
               >
                 <Edit2 size={14} />
@@ -114,7 +132,7 @@ export function Sidebar({
                   setShowMenu(false);
                   onBoardDelete(board);
                 }}
-                className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
                 type="button"
               >
                 <Trash2 size={14} />
@@ -132,46 +150,46 @@ export function Sidebar({
       {/* Mobile menu button - Always visible on mobile, hidden on desktop */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-3 left-3 sm:top-4 sm:left-4 z-[60] lg:hidden p-2.5 rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all backdrop-blur-sm"
+        className="fixed top-3 left-3 sm:top-4 sm:left-4 z-[60] lg:hidden p-2.5 rounded-lg bg-white dark:bg-black shadow-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-all backdrop-blur-sm"
         aria-label={isOpen ? "Close menu" : "Open menu"}
         type="button"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         initial={false}
         animate={{ rotate: isOpen ? 90 : 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.15 }}
       >
-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+        {isOpen ? <X size={18} className="text-black dark:text-white" /> : <Menu size={18} className="text-black dark:text-white" />}
       </motion.button>
 
       {/* Desktop sidebar - Always visible on large screens */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 xl:w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-40 flex-col shadow-sm">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-screen-responsive w-64 xl:w-72 bg-white dark:bg-black border-r border-black/10 dark:border-white/10 z-40 flex-col flex-shrink-0">
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800">
+        <div className="p-4 sm:p-6 border-b border-black/10 dark:border-white/10">
           <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-              <LayoutDashboard className="text-white" size={18} />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+              <LayoutDashboard className="text-white dark:text-black" size={18} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+              <h1 className="text-lg sm:text-xl font-bold text-black dark:text-white truncate">
                 Kibble
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+              <p className="text-xs text-black/50 dark:text-white/50 hidden sm:block font-bold">
                 Kanban Boards
               </p>
             </div>
           </div>
 
           {/* User info */}
-          <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center flex-shrink-0">
-              <User className="text-white" size={14} />
+          <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+              <User className="text-white dark:text-black" size={14} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p className="text-xs sm:text-sm font-bold text-black dark:text-white truncate">
                 {session?.user?.name || "User"}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:block">
+              <p className="text-xs text-black/50 dark:text-white/50 truncate hidden sm:block font-bold">
                 {session?.user?.email}
               </p>
             </div>
@@ -181,17 +199,17 @@ export function Sidebar({
         {/* Boards section */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+            <h2 className="text-xs sm:text-sm font-bold text-black dark:text-white uppercase tracking-wider">
               Classes
             </h2>
             <button
               onClick={onNewBoard}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group flex-shrink-0"
+              className="p-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors group flex-shrink-0"
               title="Create new board"
               type="button"
             >
               <Plus
-                className="text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                className="text-black dark:text-white"
                 size={16}
               />
             </button>
@@ -205,16 +223,23 @@ export function Sidebar({
         </div>
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
+        <div className="p-3 sm:p-4 border-t border-black/10 dark:border-white/10 space-y-2">
+          <Link
+            href="/settings"
+            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
+          >
+            <Settings size={14} />
+            <span className="text-xs sm:text-sm">Settings</span>
+          </Link>
           <button
             onClick={toggleTheme}
-            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
+            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
             type="button"
           >
             {theme === "light" ? (
-              <Moon size={16} />
+              <Moon size={14} />
             ) : (
-              <Sun size={16} />
+              <Sun size={14} />
             )}
             <span className="text-xs sm:text-sm">
               {theme === "light" ? "Dark Mode" : "Light Mode"}
@@ -222,10 +247,10 @@ export function Sidebar({
           </button>
           <button
             onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
             type="button"
           >
-            <LogOut size={16} />
+            <LogOut size={14} />
             <span className="text-xs sm:text-sm">Sign Out</span>
           </button>
         </div>
@@ -250,34 +275,34 @@ export function Sidebar({
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full w-64 sm:w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-[55] flex flex-col shadow-xl lg:hidden"
+              className="fixed left-0 top-0 h-screen-responsive w-64 sm:w-72 bg-white dark:bg-black border-r border-black/10 dark:border-white/10 z-[55] flex flex-col shadow-xl lg:hidden flex-shrink-0"
             >
               {/* Header */}
-              <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800">
+              <div className="p-4 sm:p-6 border-b border-black/10 dark:border-white/10">
                 <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <LayoutDashboard className="text-white" size={18} />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+                    <LayoutDashboard className="text-white dark:text-black" size={18} />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+                    <h1 className="text-lg sm:text-xl font-bold text-black dark:text-white truncate">
                       Kibble
                     </h1>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                    <p className="text-xs text-black/50 dark:text-white/50 hidden sm:block font-bold">
                       Kanban Boards
                     </p>
                   </div>
                 </div>
 
                 {/* User info */}
-                <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center flex-shrink-0">
-                    <User className="text-white" size={14} />
+                <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+                    <User className="text-white dark:text-black" size={14} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p className="text-xs sm:text-sm font-bold text-black dark:text-white truncate">
                       {session?.user?.name || "User"}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:block">
+                    <p className="text-xs text-black/50 dark:text-white/50 truncate hidden sm:block font-bold">
                       {session?.user?.email}
                     </p>
                   </div>
@@ -287,17 +312,17 @@ export function Sidebar({
               {/* Boards section */}
               <div className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <h2 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  <h2 className="text-xs sm:text-sm font-bold text-black dark:text-white uppercase tracking-wider">
                     Classes
                   </h2>
                   <button
                     onClick={onNewBoard}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group flex-shrink-0"
+                    className="p-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors group flex-shrink-0"
                     title="Create new board"
                     type="button"
                   >
                     <Plus
-                      className="text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                      className="text-black dark:text-white"
                       size={16}
                     />
                   </button>
@@ -311,16 +336,24 @@ export function Sidebar({
               </div>
 
               {/* Footer */}
-              <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
+              <div className="p-3 sm:p-4 border-t border-black/10 dark:border-white/10 space-y-2">
+                <Link
+                  href="/settings"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
+                >
+                  <Settings size={14} />
+                  <span className="text-xs sm:text-sm">Settings</span>
+                </Link>
                 <button
                   onClick={toggleTheme}
-                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
+                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
                   type="button"
                 >
                   {theme === "light" ? (
-                    <Moon size={16} />
+                    <Moon size={14} />
                   ) : (
-                    <Sun size={16} />
+                    <Sun size={14} />
                   )}
                   <span className="text-xs sm:text-sm">
                     {theme === "light" ? "Dark Mode" : "Light Mode"}
@@ -328,10 +361,10 @@ export function Sidebar({
                 </button>
                 <button
                   onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
                   type="button"
                 >
-                  <LogOut size={16} />
+                  <LogOut size={14} />
                   <span className="text-xs sm:text-sm">Sign Out</span>
                 </button>
               </div>

@@ -41,40 +41,42 @@ export function DeleteConfirmationDialog({
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                    <AlertTriangle className="text-red-600 dark:text-red-400" size={20} />
+            <div className="bg-white dark:bg-black rounded-lg shadow-2xl w-full max-w-md mx-3 sm:mx-4 p-4 sm:p-6 border border-black/10 dark:border-white/10">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                    <AlertTriangle className="text-white dark:text-black" size={16} />
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-black dark:text-white">
                     {title}
                   </h2>
                 </div>
                 <button
                   onClick={onClose}
                   disabled={loading}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-opacity"
                   aria-label="Close"
+                  type="button"
                 >
-                  <X className="text-gray-500 dark:text-gray-400" size={20} />
+                  <X className="text-black dark:text-white" size={18} />
                 </button>
               </div>
 
-              <p className="text-gray-600 dark:text-gray-400 mb-2">
+              <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mb-2 font-bold">
                 {message}
               </p>
-              <p className="font-semibold text-gray-900 dark:text-white mb-6">
+              <p className="font-bold text-black dark:text-white mb-4 sm:mb-6 text-sm sm:text-base">
                 "{itemName}"
               </p>
 
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <motion.button
                   onClick={onConfirm}
                   disabled={loading}
-                  whileHover={{ scale: loading ? 1 : 1.02 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+                  whileHover={{ scale: loading ? 1 : 1.01 }}
+                  whileTap={{ scale: loading ? 1 : 0.99 }}
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-opacity text-xs sm:text-sm font-bold"
+                  type="button"
                 >
                   {loading ? "Deleting..." : "Delete"}
                 </motion.button>
@@ -82,7 +84,7 @@ export function DeleteConfirmationDialog({
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 text-xs sm:text-sm font-bold"
                 >
                   Cancel
                 </button>

@@ -1,0 +1,346 @@
+/**
+ * Alert Utilities Module
+ * 
+ * Provides functions for managing due date alerts and completion notifications.
+ * Uses Browser Notification API for cross-browser compatibility.
+ */
+
+import type { Task } from "@/lib/types";
+
+/**
+ * Alert types
+ */
+export type AlertType = 'urgent' | 'warning' | 'completion';
+
+/**
+ * Alert urgency levels
+ */
+export type AlertUrgency = 'urgent' | 'warning' | null;
+
+/**
+ * Alert interface
+ */
+export interface Alert {
+  id: string;
+  type: AlertType;
+  taskId: string;
+  taskTitle: string;
+  daysUntil?: number;
+  dueDate?: Date;
+  color: 'red' | 'green';
+  closed: boolean;
+  createdAt: Date;
+}
+
+/**
+ * Calculates days until due date
+ * 
+ * @param dueDate - The due date to calculate from
+ * @returns Number of days until due date (negative if overdue)
+ */
+export function calculateDaysUntil(dueDate: Date): number {
+  const now = new Date();
+  const diffTime = dueDate.getTime() - now.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Determines alert urgency based on days until due date
+ * 
+ * @param daysUntil - Days until due date (negative if overdue)
+ * @returns Alert urgency level
+ * 
+ * Urgency levels (all return 'urgent' for RED alerts):
+ * - 'urgent': Overdue, due today, due tomorrow (1 day), or due in 10 days
+ * - null: No alert needed (more than 10 days away)
+ * 
+ * All urgent cases show RED alerts as per requirements.
+ */
+export function getAlertUrgency(daysUntil: number): AlertUrgency {
+  if (daysUntil < 0) return 'urgent'; // Overdue - RED
+  if (daysUntil === 0) return 'urgent'; // Due today - RED
+  if (daysUntil === 1) return 'urgent'; // Due tomorrow (1 day away) - RED
+  if (daysUntil <= 10) return 'urgent'; // Due within 10 days - RED
+  return null; // No alert needed (more than 10 days away)
+}
+
+/**
+ * Checks if a task should generate an alert
+ * 
+ * @param task - Task to check
+ * @returns Alert object if alert should be shown, null otherwise
+ */
+export function checkTaskAlert(task: Task): Alert | null {
+  if (!task.dueDate) return null;
+
+  const dueDate = task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate);
+  const daysUntil = calculateDaysUntil(dueDate);
+  const urgency = getAlertUrgency(daysUntil);
+
+  if (!urgency) return null;
+
+  // Use stable ID based on task ID and days until (rounded to prevent duplicates for same day)
+  // This ensures the same alert doesn't get created multiple times
+  const stableId = `alert-${task.id}-${daysUntil <= 0 ? 'overdue' : daysUntil}`;
+
+  return {
+    id: stableId,
+    type: 'urgent', // All alerts are urgent (RED) when within 10 days
+    taskId: task.id,
+    taskTitle: task.title,
+    daysUntil,
+    dueDate,
+    color: 'red', // RED for all urgent alerts (overdue, today, 1 day, 10 days)
+    closed: false,
+    createdAt: new Date(),
+  };
+}
+
+/**
+ * Creates a completion alert when task is moved to Done
+ * 
+ * @param task - Task that was completed
+ * @returns Completion alert object
+ * 
+ * Uses stable ID based on task ID to prevent duplicate alerts for the same completion.
+ */
+export function createCompletionAlert(task: Task): Alert {
+  // Use stable ID based on task ID only - one completion alert per task
+  return {
+    id: `completion-${task.id}`,
+    type: 'completion',
+    taskId: task.id,
+    taskTitle: task.title,
+    color: 'green',
+    closed: false,
+    createdAt: new Date(),
+  };
+}
+
+/**
+ * Requests notification permission from the browser
+ * 
+ * Uses Browser Notification API with proper error handling and security checks.
+ * Only requests permission in secure contexts (HTTPS or localhost).
+ * 
+ * @returns Promise resolving to permission status
+ * 
+ * Security:
+ * - Only works in secure contexts (HTTPS/localhost)
+ * - Proper error handling to prevent crashes
+ * - Graceful degradation if API unavailable
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  // Check if running in secure context (required for notifications)
+  if (typeof window === 'undefined' || !window.isSecureContext) {
+    console.warn('Notifications require a secure context (HTTPS or localhost)');
+    return 'denied';
+  }
+
+  // Check if Notification API is available
+  if (!('Notification' in window)) {
+    console.warn('Browser does not support notifications');
+    return 'denied';
+  }
+
+  // Return current permission if already set
+  if (Notification.permission === 'granted') {
+    return 'granted';
+  }
+
+  if (Notification.permission === 'denied') {
+    return 'denied';
+  }
+
+  // Request permission with error handling
+  try {
+    // requestPermission() must be called in response to user interaction
+    // This function should be called from a user event handler
+    const permission = await Notification.requestPermission();
+    
+    // Validate permission value (security check)
+    if (permission !== 'granted' && permission !== 'denied' && permission !== 'default') {
+      console.warn('Invalid notification permission value:', permission);
+      return 'denied';
+    }
+    
+    return permission;
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return 'denied';
+  }
+}
+
+/**
+ * Global set to track sent notification tags
+ * Prevents duplicate browser notifications even if function is called multiple times
+ */
+const sentNotificationTags = new Set<string>();
+
+/**
+ * Clears old notification tags to prevent memory leaks
+ * Removes tags when the set gets too large
+ */
+function cleanupOldNotificationTags() {
+  // Simple cleanup: clear all if we have too many tags
+  // In a production app, you might want to use a more sophisticated cleanup with timestamps
+  if (sentNotificationTags.size > 100) {
+    sentNotificationTags.clear();
+  }
+}
+
+/**
+ * Removes a notification tag from tracking
+ * 
+ * Allows a new notification to be shown for the same tag if the event happens again
+ * (e.g., task moved to Done again after being moved away)
+ * 
+ * @param tag - Notification tag to remove from tracking
+ */
+export function clearNotificationTag(tag: string): void {
+  sentNotificationTags.delete(tag);
+}
+
+/**
+ * Shows a browser notification
+ * 
+ * Uses Browser Notification API with strict security checks and error handling.
+ * Prevents duplicate notifications using stable tags and tracking.
+ * 
+ * @param title - Notification title (sanitized)
+ * @param options - Notification options (must include a stable tag)
+ * @returns Notification instance or null if permission denied, error, or duplicate
+ * 
+ * Security:
+ * - Validates secure context
+ * - Sanitizes title to prevent XSS
+ * - Proper error handling
+ * - Auto-closes non-urgent notifications
+ * - Prevents duplicate notifications using tag tracking
+ */
+export function showBrowserNotification(
+  title: string,
+  options: NotificationOptions
+): Notification | null {
+  // Security check: Must be in secure context
+  if (typeof window === 'undefined' || !window.isSecureContext) {
+    console.warn('Notifications require a secure context (HTTPS or localhost)');
+    return null;
+  }
+
+  // Check if Notification API is available
+  if (!('Notification' in window)) {
+    console.warn('Browser does not support notifications');
+    return null;
+  }
+
+  // Check permission
+  if (Notification.permission !== 'granted') {
+    console.warn('Notification permission not granted');
+    return null;
+  }
+
+  // Sanitize title to prevent XSS (basic check)
+  const sanitizedTitle = String(title).slice(0, 100); // Limit length
+
+  // Generate stable tag - must be provided in options or we'll create one
+  // The tag is critical for preventing duplicates - same tag = same notification
+  const notificationTag = options.tag || `notification-${Date.now()}`;
+
+  // Check if we've already sent a notification with this tag
+  // This prevents duplicates even if the function is called multiple times
+  if (sentNotificationTags.has(notificationTag)) {
+    // Duplicate detected - don't show notification
+    return null;
+  }
+
+  // Cleanup old tags periodically
+  cleanupOldNotificationTags();
+
+  try {
+    // Create notification with sanitized title and stable tag
+    const notification = new Notification(sanitizedTitle, {
+      ...options,
+      // Use stable tag - browser will replace existing notification with same tag
+      tag: notificationTag,
+      // Sanitize body if provided
+      body: options.body ? String(options.body).slice(0, 200) : undefined,
+    });
+
+    // Track that we've sent this notification
+    sentNotificationTags.add(notificationTag);
+
+    // Auto-close after 5 seconds for non-urgent notifications
+    // This prevents notification spam
+    if (!options.requireInteraction) {
+      setTimeout(() => {
+        try {
+          notification.close();
+        } catch (error) {
+          // Ignore errors when closing (notification may already be closed)
+        }
+      }, 5000);
+    }
+
+    return notification;
+  } catch (error) {
+    console.error('Error showing notification:', error);
+    return null;
+  }
+}
+
+/**
+ * Formats alert message based on alert type
+ * 
+ * @param alert - Alert to format
+ * @returns Formatted message string
+ */
+export function formatAlertMessage(alert: Alert): string {
+  if (alert.type === 'completion') {
+    return `Congratulations! "${alert.taskTitle}" has been moved to Done`;
+  }
+
+  if (alert.daysUntil === undefined) {
+    return `Task "${alert.taskTitle}" has a due date`;
+  }
+
+  if (alert.daysUntil < 0) {
+    return `Task "${alert.taskTitle}" is overdue by ${Math.abs(alert.daysUntil)} day${Math.abs(alert.daysUntil) !== 1 ? 's' : ''}`;
+  }
+
+  if (alert.daysUntil === 0) {
+    return `Task "${alert.taskTitle}" is due today`;
+  }
+
+  if (alert.daysUntil === 1) {
+    return `Task "${alert.taskTitle}" is due tomorrow`;
+  }
+
+  return `Task "${alert.taskTitle}" is due in ${alert.daysUntil} days`;
+}
+
+/**
+ * Formats alert title based on alert type
+ * 
+ * @param alert - Alert to format
+ * @returns Formatted title string
+ */
+export function formatAlertTitle(alert: Alert): string {
+  if (alert.type === 'completion') {
+    return 'Task Completed!';
+  }
+
+  if (alert.daysUntil !== undefined && alert.daysUntil < 0) {
+    return 'Task Overdue!';
+  }
+
+  if (alert.daysUntil === 0) {
+    return 'Task Due Today!';
+  }
+
+  if (alert.daysUntil === 1) {
+    return 'Task Due Tomorrow!';
+  }
+
+  return 'Task Due Soon!';
+}

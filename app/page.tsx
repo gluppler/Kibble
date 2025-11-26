@@ -71,23 +71,6 @@ export default function Home() {
   const [deletingBoard, setDeletingBoard] = useState<Board | null>(null);
 
   /**
-   * Authentication and board loading effect
-   * 
-   * Redirects unauthenticated users to sign-in page.
-   * Loads boards when user is authenticated.
-   */
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-      return;
-    }
-
-    if (status === "authenticated") {
-      loadBoards();
-    }
-  }, [status, router]);
-
-  /**
    * Creates a default board if no boards exist
    * 
    * This is called when a user has no boards yet.
@@ -119,6 +102,24 @@ export default function Home() {
       console.error("[BOARD CREATE] Error creating default board:", error);
     }
   }, []);
+
+  /**
+   * Authentication and board loading effect
+   * 
+   * Redirects unauthenticated users to sign-in page.
+   * Loads boards when user is authenticated.
+   */
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+      return;
+    }
+
+    if (status === "authenticated") {
+      loadBoards();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, router]);
 
   /**
    * Loads all boards for the current user
@@ -303,14 +304,14 @@ export default function Home() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading your boards...</p>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base">Loading your boards...</p>
         </motion.div>
       </div>
     );
@@ -322,14 +323,14 @@ export default function Home() {
 
   if (!boardId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="text-gray-500 dark:text-gray-400">Failed to load board</div>
+      <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
+        <div className="text-black dark:text-white font-bold">Failed to load board</div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="flex min-h-screen-responsive bg-white dark:bg-black overflow-hidden w-full">
       <Sidebar
         boards={boards}
         currentBoardId={boardId}
@@ -339,12 +340,12 @@ export default function Home() {
         onBoardDelete={handleBoardDelete}
       />
       
-      <main className="flex-1 overflow-hidden lg:ml-64 xl:ml-72 pt-14 sm:pt-16 lg:pt-0">
+      <main className="flex-1 overflow-hidden lg:ml-64 xl:ml-72 pt-12 sm:pt-14 md:pt-16 lg:pt-0 w-full min-w-0 flex flex-col">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="h-full"
+          transition={{ duration: 0.2 }}
+          className="flex-1 w-full min-w-0 flex flex-col"
         >
           <KanbanBoard boardId={boardId} />
         </motion.div>

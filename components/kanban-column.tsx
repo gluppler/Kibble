@@ -20,6 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import type { Column, Task } from "@/lib/types";
 import { KanbanTask } from "./kanban-task";
+import { useAlerts } from "@/contexts/alert-context";
 
 /**
  * Props for KanbanColumn component
@@ -37,6 +38,9 @@ interface KanbanColumnProps {
  * Renders a column container with tasks, task creation form, and drag-and-drop support.
  */
 export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: KanbanColumnProps) {
+  // Alert context for real-time alerts
+  const { checkTaskForAlert } = useAlerts();
+  
   // Form state for task creation
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
@@ -108,13 +112,6 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
     }
 
     try {
-      console.log(`[TASK CREATE] Creating task:`, {
-        title: requestBody.title,
-        description: requestBody.description,
-        dueDate: requestBody.dueDate,
-        columnId: requestBody.columnId,
-      });
-
       // Create task via API
       const response = await fetch("/api/tasks", {
         method: "POST",
@@ -133,12 +130,11 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
 
       // Task created successfully
       const createdTask = await response.json();
-      console.log("[TASK CREATE] Task created successfully:", {
-        id: createdTask.id,
-        title: createdTask.title,
-        description: createdTask.description,
-        dueDate: createdTask.dueDate,
-      });
+
+      // Check for due date alert in real-time
+      if (createdTask.dueDate) {
+        checkTaskForAlert(createdTask);
+      }
 
       // Reset form state
       setTaskTitle("");
@@ -165,21 +161,22 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
   return (
     <motion.div
       ref={setNodeRef}
-      className={`flex flex-col w-full sm:w-80 min-w-[280px] max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 transition-all duration-200 ${
-        isOver ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 shadow-md scale-[1.02]" : ""
+      className={`flex flex-col w-full min-w-0 bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-2 sm:p-3 md:p-4 transition-all duration-200 ${
+        isOver ? "border-black dark:border-white shadow-lg scale-[1.01]" : ""
       }`}
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
+      whileHover={{ y: -1 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      style={{ maxWidth: '100%' }}
     >
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="font-semibold text-base text-gray-900 dark:text-white">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-black/10 dark:border-white/10 flex-shrink-0">
+        <h2 className="font-bold text-sm sm:text-base text-black dark:text-white truncate flex-1">
           {column.title}
         </h2>
-        <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
+        <span className="px-2 py-0.5 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded-full ml-2 flex-shrink-0">
           {column.tasks.length}
         </span>
       </div>
-      <div className="flex-1 space-y-2 min-h-[150px] sm:min-h-[200px] overflow-y-auto scrollbar-thin max-h-[calc(100vh-180px)] sm:max-h-[calc(100vh-200px)]">
+      <div className="space-y-2 overflow-y-auto scrollbar-thin overflow-x-hidden">
         <SortableContext 
           items={taskIds} 
           strategy={verticalListSortingStrategy}
@@ -194,13 +191,8 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
             />
           ))}
         </SortableContext>
-        {column.tasks.length === 0 && !isAddingTask && (
-          <div className="text-center text-gray-400 dark:text-gray-600 py-8 text-sm">
-            Drop tasks here
-          </div>
-        )}
         {isAddingTask ? (
-          <form onSubmit={handleAddTask} className="space-y-2">
+          <form onSubmit={handleAddTask} className="space-y-2 flex-shrink-0">
             <motion.input
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -208,7 +200,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               placeholder="Task title"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+              className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold"
               autoFocus
             />
             <motion.textarea
@@ -219,7 +211,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
               onChange={(e) => setTaskDescription(e.target.value)}
               placeholder="Description (optional)"
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all text-sm"
+              className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent resize-none transition-all text-xs sm:text-sm font-bold"
             />
             <motion.input
               initial={{ opacity: 0, scale: 0.95 }}
@@ -229,7 +221,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
               value={taskDueDate}
               onChange={(e) => setTaskDueDate(e.target.value)}
               placeholder="Due date (optional)"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+              className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
             />
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -239,7 +231,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
             >
               <button
                 type="submit"
-                className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all text-sm font-medium shadow-sm hover:shadow-md"
+                className="flex-1 px-2.5 sm:px-3 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold shadow-sm hover:shadow-md"
               >
                 Add
               </button>
@@ -251,7 +243,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
                   setTaskDescription("");
                   setTaskDueDate("");
                 }}
-                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
+                className="px-2.5 sm:px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
               >
                 Cancel
               </button>
@@ -260,17 +252,13 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
         ) : canCreateTasks ? (
           <motion.button
             onClick={() => setIsAddingTask(true)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full py-2.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="w-full py-2.5 text-xs sm:text-sm text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white border-2 border-dashed border-black/20 dark:border-white/20 rounded-lg hover:border-black dark:hover:border-white hover:bg-black/5 dark:hover:bg-white/5 transition-all font-bold"
           >
             + Add task
           </motion.button>
-        ) : (
-          <div className="text-center text-gray-400 dark:text-gray-500 py-4 text-xs italic">
-            Tasks can only be created in "To-Do"
-          </div>
-        )}
+        ) : null}
       </div>
     </motion.div>
   );

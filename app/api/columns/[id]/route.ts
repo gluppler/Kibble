@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { checkColumnPermission } from "@/lib/permissions";
 
 export async function PATCH(
   request: Request,
@@ -8,19 +9,20 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerAuthSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
     const body = await request.json();
     const { order } = body;
 
-    // Verify column exists and get board info
+    // Check column permission using permission utility
+    const permissionCheck = await checkColumnPermission(id, session);
+    if (!permissionCheck.allowed) {
+      return NextResponse.json(
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
+      );
+    }
+
+    // Get column for order update
     const existingColumn = await db.column.findUnique({
       where: { id },
       include: {
@@ -32,14 +34,6 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Column not found" },
         { status: 404 }
-      );
-    }
-
-    // Strict ownership check: verify board belongs to user
-    if (existingColumn.board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only edit your own columns" },
-        { status: 403 }
       );
     }
 

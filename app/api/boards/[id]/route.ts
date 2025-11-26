@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { checkBoardPermission } from "@/lib/permissions";
 
 export async function GET(
   request: Request,
@@ -8,15 +9,17 @@ export async function GET(
 ) {
   try {
     const session = await getServerAuthSession();
+    const { id } = await params;
 
-    if (!session?.user?.id) {
+    // Check board permission using permission utility
+    const permissionCheck = await checkBoardPermission(id, session);
+    if (!permissionCheck.allowed) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
       );
     }
 
-    const { id } = await params;
     const board = await db.board.findUnique({
       where: { id },
       include: {
@@ -35,14 +38,6 @@ export async function GET(
       return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
 
-    // Strict ownership check: verify board belongs to user
-    if (board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only access your own boards" },
-        { status: 403 }
-      );
-    }
-
     return NextResponse.json(board);
   } catch (error) {
     console.error("Error fetching board:", error);
@@ -59,42 +54,23 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerAuthSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
     const body = await request.json();
     const { title } = body;
+
+    // Check board permission using permission utility
+    const permissionCheck = await checkBoardPermission(id, session);
+    if (!permissionCheck.allowed) {
+      return NextResponse.json(
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
+      );
+    }
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json(
         { error: "Title is required and must be a non-empty string" },
         { status: 400 }
-      );
-    }
-
-    // First, verify board ownership
-    const existingBoard = await db.board.findUnique({
-      where: { id },
-    });
-
-    if (!existingBoard) {
-      return NextResponse.json(
-        { error: "Board not found" },
-        { status: 404 }
-      );
-    }
-
-    // Strict ownership check: verify board belongs to user
-    if (existingBoard.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only edit your own boards" },
-        { status: 403 }
       );
     }
 
@@ -129,33 +105,14 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerAuthSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
 
-    // Verify board ownership
-    const board = await db.board.findUnique({
-      where: { id },
-    });
-
-    if (!board) {
+    // Check board permission using permission utility
+    const permissionCheck = await checkBoardPermission(id, session);
+    if (!permissionCheck.allowed) {
       return NextResponse.json(
-        { error: "Board not found" },
-        { status: 404 }
-      );
-    }
-
-    // Strict ownership check: verify board belongs to user
-    if (board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only delete your own boards" },
-        { status: 403 }
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
       );
     }
 

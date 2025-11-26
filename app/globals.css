@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,34 +7,68 @@
 :root,
 :root[data-theme="light"],
 .light {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FFFFFF;
+  --foreground: #000000;
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 :root[data-theme="dark"],
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #000000;
+  --foreground: #FFFFFF;
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
   -webkit-text-size-adjust: 100%;
   -moz-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  font-size: clamp(14px, 1.5vw, 16px);
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: var(--font-inter);
+  font-weight: 700;
+  transition: background-color 0.2s ease, color 0.2s ease;
   overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  width: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Minimalist scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--foreground);
+  opacity: 0.2;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  opacity: 0.4;
 }
 
 @layer utilities {
@@ -40,10 +76,10 @@ body {
     text-wrap: balance;
   }
   
-  /* Smooth scrollbar */
+  /* Minimalist scrollbar */
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
   
   .scrollbar-thin::-webkit-scrollbar-track {
@@ -51,19 +87,154 @@ body {
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-  }
-  
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--foreground);
+    opacity: 0.2;
+    border-radius: 2px;
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
+    opacity: 0.4;
   }
   
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+  /* Responsive scaling utilities */
+  .scale-responsive {
+    @apply w-full sm:w-auto;
+  }
+  
+  .text-responsive {
+    @apply text-sm sm:text-base;
+  }
+  
+  /* Viewport-based height utilities */
+  .h-screen-responsive {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+  
+  .min-h-screen-responsive {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  
+  /* Container scaling */
+  .container-responsive {
+    width: 100%;
+    max-width: 100%;
+    padding-left: clamp(0.75rem, 2vw, 1.5rem);
+    padding-right: clamp(0.75rem, 2vw, 1.5rem);
+  }
+  
+  /* Kanban column grid layout */
+  .kanban-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--column-count, 4), minmax(0, 1fr));
+    gap: clamp(0.5rem, 1.5vw, 1rem);
+    width: 100%;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  
+  @media (max-width: 640px) {
+    .kanban-grid {
+      grid-template-columns: repeat(var(--column-count, 4), minmax(200px, 1fr));
+      overflow-x: auto;
+    }
+  }
+  
+  /* Column scaling utility */
+  .column-flex {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+  
+  .column-min-width {
+    min-width: clamp(200px, 20vw, 300px);
+  }
+  
+  /* Fluid typography */
+  .text-fluid-xs {
+    font-size: clamp(0.625rem, 1.5vw, 0.75rem);
+  }
+  
+  .text-fluid-sm {
+    font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+  }
+  
+  .text-fluid-base {
+    font-size: clamp(0.875rem, 1.5vw, 1rem);
+  }
+  
+  .text-fluid-lg {
+    font-size: clamp(1rem, 2vw, 1.125rem);
+  }
+  
+  .text-fluid-xl {
+    font-size: clamp(1.125rem, 2.5vw, 1.25rem);
+  }
+  
+  .text-fluid-2xl {
+    font-size: clamp(1.25rem, 3vw, 1.5rem);
+  }
+  
+  .text-fluid-3xl {
+    font-size: clamp(1.5rem, 4vw, 1.875rem);
+  }
+  
+  /* Minimalist borders */
+  .border-minimal {
+    border: 1px solid var(--foreground);
+    opacity: 0.1;
+  }
+  
+  .border-minimal-dark {
+    border: 1px solid var(--foreground);
+    opacity: 0.2;
+  }
+  
+  /* Fix calendar icon visibility in datetime-local inputs for dark theme */
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0);
+    cursor: pointer;
+    opacity: 1 !important;
+    background-color: transparent;
+    width: 18px;
+    height: 18px;
+  }
+  
+  /* Dark theme: invert calendar icon to white (matching text color) */
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  [data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1) !important;
+    opacity: 1 !important;
+    cursor: pointer;
+    background-color: transparent;
+    width: 18px;
+    height: 18px;
+  }
+  
+  /* Firefox */
+  input[type="datetime-local"]::-moz-calendar-picker-indicator {
+    filter: invert(0);
+    cursor: pointer;
+    opacity: 1 !important;
+    background-color: transparent;
+    width: 18px;
+    height: 18px;
+  }
+  
+  /* Dark theme: invert calendar icon to white (matching text color) */
+  .dark input[type="datetime-local"]::-moz-calendar-picker-indicator,
+  [data-theme="dark"] input[type="datetime-local"]::-moz-calendar-picker-indicator,
+  html.dark input[type="datetime-local"]::-moz-calendar-picker-indicator {
+    filter: invert(1) brightness(1) !important;
+    opacity: 1 !important;
+    cursor: pointer;
+    background-color: transparent;
+    width: 18px;
+    height: 18px;
   }
 }

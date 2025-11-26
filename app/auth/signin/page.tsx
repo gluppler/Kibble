@@ -35,39 +35,37 @@ export default function SignInPage() {
           return;
         }
 
+        // Login successful, proceed to dashboard
         router.push("/");
         router.refresh();
       } else {
         // Register
-        const res = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
-        });
+        try {
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, email, password }),
+          });
 
-        const data = await res.json();
+          const data = await res.json();
 
-        if (!res.ok) {
-          setError(data.error || "Registration failed");
+          if (!res.ok) {
+            setError(data.error || "Registration failed");
+            setLoading(false);
+            return;
+          }
+
+          // Registration successful
+          setError(""); // Clear any errors
+          alert(data.message || "Account created successfully. You can now sign in.");
+          
+          // Switch to login mode
+          setIsLogin(true);
           setLoading(false);
-          return;
-        }
-
-        // Auto-login after registration
-        const signInResult = await signIn("credentials", {
-          email,
-          password,
-          redirect: false,
-        });
-
-        if (signInResult?.error) {
-          setError("Registration successful but login failed. Please try logging in.");
+        } catch (fetchError) {
+          setError("Failed to register. Please try again.");
           setLoading(false);
-          return;
         }
-
-        router.push("/");
-        router.refresh();
       }
     } catch (err) {
       setError("An unexpected error occurred");
@@ -76,32 +74,32 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4">
+    <div className="min-h-screen-responsive flex items-center justify-center bg-white dark:bg-black px-3 sm:px-4 w-full py-4 sm:py-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700"
+        transition={{ duration: 0.2 }}
+        className="max-w-md w-full space-y-4 sm:space-y-6 md:space-y-8 bg-white dark:bg-black p-4 sm:p-6 md:p-8 rounded-lg border border-black/10 dark:border-white/10 mx-auto"
       >
         <div>
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <LayoutDashboard className="text-white" size={32} />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-black dark:bg-white flex items-center justify-center">
+              <LayoutDashboard className="text-white dark:text-black" size={24} />
             </div>
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h2 className="mt-4 sm:mt-6 text-center text-2xl sm:text-3xl font-bold text-black dark:text-white">
             {isLogin ? "Welcome back" : "Get started"}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-center text-xs sm:text-sm text-black/60 dark:text-white/60 font-bold">
             {isLogin ? "Sign in to continue" : "Create your account to begin"}
           </p>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-center text-xs sm:text-sm text-black/60 dark:text-white/60 font-bold">
             {isLogin ? (
               <>
                 Or{" "}
                 <button
                   onClick={() => setIsLogin(false)}
-                  className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                  className="font-bold text-black dark:text-white hover:opacity-80 underline"
                 >
                   create a new account
                 </button>
@@ -111,7 +109,7 @@ export default function SignInPage() {
                 Or{" "}
                 <button
                   onClick={() => setIsLogin(true)}
-                  className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                  className="font-bold text-black dark:text-white hover:opacity-80 underline"
                 >
                   sign in to existing account
                 </button>
@@ -119,18 +117,18 @@ export default function SignInPage() {
             )}
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-6 sm:mt-8 space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded">
+            <div className="bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 text-black dark:text-white px-4 py-3 rounded-lg font-bold text-sm">
               {error}
             </div>
           )}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {!isLogin && (
               <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                  className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
                 >
                   Name
                 </label>
@@ -141,7 +139,7 @@ export default function SignInPage() {
                   required={!isLogin}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold"
                   placeholder="Your name"
                 />
               </div>
@@ -149,7 +147,7 @@ export default function SignInPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
               >
                 Email address
               </label>
@@ -161,14 +159,14 @@ export default function SignInPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold"
                 placeholder="Email address"
               />
             </div>
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
               >
                 Password
               </label>
@@ -180,9 +178,9 @@ export default function SignInPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
-                placeholder="Password (min 6 characters)"
-                minLength={6}
+                className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold"
+                placeholder={isLogin ? "Password" : "Password (min 8 characters)"}
+                minLength={isLogin ? undefined : 8}
               />
             </div>
           </div>
@@ -191,9 +189,9 @@ export default function SignInPage() {
             <motion.button
               type="submit"
               disabled={loading}
-              whileHover={{ scale: loading ? 1 : 1.02 }}
-              whileTap={{ scale: loading ? 1 : 0.98 }}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all"
+              whileHover={{ scale: loading ? 1 : 1.01 }}
+              whileTap={{ scale: loading ? 1 : 0.99 }}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white dark:text-black bg-black dark:bg-white hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading
                 ? "Please wait..."

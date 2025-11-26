@@ -34,6 +34,12 @@ import type { Column, Task } from "@/lib/types";
 import { KanbanColumn } from "./kanban-column";
 import { EditTaskDialog } from "./edit-task-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
+import { LayoutSelector } from "./layout-selector";
+import { useLayout } from "@/contexts/layout-context";
+import { BoardTableView } from "./board-table-view";
+import { BoardGridView } from "./board-grid-view";
+import { BoardListView } from "./board-list-view";
+import { useAlerts } from "@/contexts/alert-context";
 
 /**
  * Board interface - represents a complete kanban board with columns and tasks
@@ -81,6 +87,11 @@ function findTaskInBoard(
  * board state management, and task/column interactions.
  */
 export function KanbanBoard({ boardId }: KanbanBoardProps) {
+  // Alert context for completion alerts
+  const { addCompletionAlert } = useAlerts();
+  // Layout context for view mode
+  const { layout } = useLayout();
+  
   // Board state
   const [board, setBoard] = useState<Board | null>(null);
   // Active task being dragged (for drag overlay)
@@ -112,20 +123,15 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    */
   const fetchBoard = useCallback(async () => {
     try {
-      console.log(`[BOARD FETCH] Fetching board ${boardId}`);
       const res = await fetch(`/api/boards/${boardId}`);
       if (res.ok) {
         const data = await res.json();
-        console.log(`[BOARD FETCH] Board fetched successfully:`, {
-          id: data.id,
-          title: data.title,
-          columnsCount: data.columns?.length || 0,
-          tasksCount: data.columns?.reduce((sum: number, col: Column & { tasks: Task[] }) => sum + (col.tasks?.length || 0), 0) || 0,
-        });
         setBoard(data);
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error("[BOARD FETCH] Failed to fetch board:", errorData);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[BOARD FETCH] Failed to fetch board:", errorData);
+        }
       }
     } catch (error) {
       console.error("[BOARD FETCH] Error fetching board:", error);
@@ -302,8 +308,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
       // Update column order in database
       try {
-        console.log(`[COLUMN DRAG END] Moving column ${activeId} to order ${newOrder}`);
-        
         const response = await fetch(`/api/columns/${activeId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -315,12 +319,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           console.error("[COLUMN DRAG END] Failed to update column:", errorData);
           throw new Error(errorData.error || "Failed to update column order");
         }
-
-        const updatedColumn = await response.json();
-        console.log("[COLUMN DRAG END] Column order updated successfully:", {
-          id: updatedColumn.id,
-          order: updatedColumn.order,
-        });
 
         // Refetch to get updated order
         await fetchBoard();
@@ -473,6 +471,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       
       const updatedTask = await response.json();
       
+      // Check if task was moved to Done column - show completion alert in real-time
+      const targetColumn = board?.columns.find(col => col.id === newColumnId);
+      if (targetColumn?.title === "Done" && updatedTask.locked) {
+        addCompletionAlert(updatedTask);
+      }
+      
       // Refetch immediately to ensure consistency and get updated data (including locked status)
       // No delay needed - the optimistic update already shows the change
       await fetchBoard();
@@ -549,81 +553,167 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     [sortedColumns]
   );
 
+  // Calculate column width based on viewport and column count
+  // MUST be called before any early returns to follow Rules of Hooks
+  const columnCount = sortedColumns.length;
+  
+  /**
+   * Dynamic column width calculation that scales with viewport
+   * Ensures all columns fit on one page when possible
+   * 
+   * Note: This hook must be called before any conditional returns
+   * to maintain consistent hook order across all renders.
+   */
+  const columnWidthStyle = useMemo(() => {
+    if (columnCount === 0) return { width: '100%' };
+    
+    // For 4 or fewer columns, use equal distribution with flex
+    // This ensures all columns fit on one page and scale proportionally
+    // The parent container uses flexbox, so flex: 1 will distribute space equally
+    if (columnCount <= 4) {
+      return { 
+        flex: '1 1 0%', // Equal distribution
+        minWidth: 0, // Allow shrinking
+        maxWidth: '100%', // Prevent overflow
+      };
+    }
+    
+    // For more than 4 columns, use calculated width with horizontal scroll
+    // Parent container already accounts for sidebar via margin, so use 100% of container
+    // Account for: padding (~2.5rem total), gaps between columns
+    const totalGaps = columnCount - 1;
+    // Calculate based on container width (100%) minus padding and gaps
+    // Minimum 200px per column for readability, maximum 350px
+    return {
+      width: `clamp(200px, calc((100% - 2.5rem - ${totalGaps}rem) / ${columnCount}), 350px)`,
+      minWidth: '200px',
+      maxWidth: '350px',
+      flexShrink: 0
+    };
+  }, [columnCount]);
+
+  // Early returns AFTER all hooks have been called
+  // This ensures hooks are always called in the same order
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-500">Loading board...</div>
+      <div className="flex items-center justify-center min-h-screen-responsive w-full">
+        <div className="text-black dark:text-white font-bold">Loading board...</div>
       </div>
     );
   }
 
   if (!board) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-500">Board not found</div>
+      <div className="flex items-center justify-center min-h-screen-responsive w-full">
+        <div className="text-black dark:text-white font-bold">Board not found</div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 lg:pl-6">
-        <motion.h1
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate pl-12 sm:pl-14 lg:pl-0"
-        >
-          {board.title}
-        </motion.h1>
+    <div className="flex-1 flex flex-col bg-white dark:bg-black w-full min-w-0 overflow-hidden">
+      <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-b border-black/10 dark:border-white/10 bg-white dark:bg-black lg:pl-6 w-full flex-shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <motion.h1
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-black dark:text-white truncate pl-10 sm:pl-12 lg:pl-0 flex-1 min-w-0"
+          >
+            {board.title}
+          </motion.h1>
+          <div className="flex-shrink-0">
+            <LayoutSelector />
+          </div>
+        </div>
       </div>
       
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-3 sm:p-4 md:p-6 scrollbar-thin">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={rectIntersection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-3 sm:gap-4 h-full min-w-max">
-            <SortableContext
-              items={columnIds}
-              strategy={horizontalListSortingStrategy}
+      <div className="flex-1 overflow-hidden p-2 sm:p-3 md:p-4 lg:p-5 w-full min-w-0" style={{ minHeight: 0 }}>
+        {layout === "kanban" ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={rectIntersection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div 
+              className="w-full"
+              style={{
+                display: 'flex',
+                gap: 'clamp(0.5rem, 1.5vw, 1rem)',
+                overflowX: columnCount > 4 ? 'auto' : 'hidden',
+                overflowY: 'auto',
+                width: '100%',
+                minWidth: 0,
+                maxWidth: '100%',
+                alignItems: 'flex-start',
+              }}
             >
-              {sortedColumns.map((column, index) => (
-                <motion.div
-                  key={column.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.3 }}
-                >
-                  <KanbanColumn
-                    column={column}
-                    onTaskAdded={fetchBoard}
-                    onTaskEdit={handleTaskEdit}
-                    onTaskDelete={handleTaskDelete}
-                  />
-                </motion.div>
-              ))}
-            </SortableContext>
+              <SortableContext
+                items={columnIds}
+                strategy={horizontalListSortingStrategy}
+              >
+                {sortedColumns.map((column, index) => (
+                  <motion.div
+                    key={column.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05, duration: 0.2 }}
+                    className="flex-shrink-0"
+                    style={columnWidthStyle}
+                  >
+                    <KanbanColumn
+                      column={column}
+                      onTaskAdded={fetchBoard}
+                      onTaskEdit={handleTaskEdit}
+                      onTaskDelete={handleTaskDelete}
+                    />
+                  </motion.div>
+                ))}
+              </SortableContext>
+            </div>
+            
+            <DragOverlay>
+              {activeTask ? (
+                <div className="bg-white dark:bg-black p-3.5 rounded-lg shadow-2xl border-2 border-black dark:border-white rotate-2 opacity-95 transform scale-105">
+                  <h3 className="font-bold text-black dark:text-white text-sm">
+                    {activeTask.title}
+                  </h3>
+                  {activeTask.description && (
+                    <p className="text-xs text-black/60 dark:text-white/60 mt-1 line-clamp-1">
+                      {activeTask.description}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        ) : layout === "table" ? (
+          <div className="h-full overflow-auto">
+            <BoardTableView
+              board={board}
+              onTaskEdit={handleTaskEdit}
+              onTaskDelete={handleTaskDelete}
+            />
           </div>
-          
-          <DragOverlay>
-            {activeTask ? (
-              <div className="bg-white dark:bg-gray-800 p-3.5 rounded-lg shadow-2xl border-2 border-blue-400 dark:border-blue-500 rotate-2 opacity-95 transform scale-105">
-                <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                  {activeTask.title}
-                </h3>
-                {activeTask.description && (
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
-                    {activeTask.description}
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        ) : layout === "grid" ? (
+          <div className="h-full overflow-auto">
+            <BoardGridView
+              board={board}
+              onTaskEdit={handleTaskEdit}
+              onTaskDelete={handleTaskDelete}
+            />
+          </div>
+        ) : layout === "list" ? (
+          <div className="h-full overflow-auto">
+            <BoardListView
+              board={board}
+              onTaskEdit={handleTaskEdit}
+              onTaskDelete={handleTaskDelete}
+            />
+          </div>
+        ) : null}
       </div>
 
       <EditTaskDialog

@@ -235,17 +235,17 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
         duration: isDragging ? 0 : 0.2,
         opacity: { duration: isDragging ? 0 : 0.15 },
       }}
-      className={`bg-white dark:bg-gray-800 p-3.5 rounded-lg shadow-sm border transition-all group relative ${
+      className={`bg-white dark:bg-black p-3 sm:p-3.5 rounded-lg border transition-all group relative ${
         isLocked
-          ? "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 opacity-90 cursor-not-allowed"
+          ? "border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 opacity-70 cursor-not-allowed"
           : isDragging
-          ? "border-blue-400 dark:border-blue-500 shadow-lg cursor-grabbing"
-          : "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md cursor-grab active:cursor-grabbing"
+          ? "border-black dark:border-white shadow-xl cursor-grabbing"
+          : "border-black/10 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-lg cursor-grab active:cursor-grabbing"
       } ${
         dueDateStatus.status === "overdue"
-          ? "border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10"
+          ? "border-black dark:border-white bg-black/10 dark:bg-white/10"
           : dueDateStatus.status === "due-soon"
-          ? "border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10"
+          ? "border-black/30 dark:border-white/30 bg-black/5 dark:bg-white/5"
           : ""
       }`}
       onMouseLeave={() => setShowMenu(false)}
@@ -253,32 +253,32 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
       tabIndex={0}
       aria-label={`Task: ${task.title}`}
     >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <div className="flex items-start gap-2 flex-1">
+      <div className="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
           {isLocked && (
-            <Lock size={14} className="text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+            <Lock size={12} className="text-black/40 dark:text-white/40 mt-0.5 flex-shrink-0" />
           )}
-          <h3 className={`font-medium text-sm flex-1 ${
+          <h3 className={`font-bold text-xs sm:text-sm flex-1 truncate ${
             isLocked 
-              ? "text-gray-500 dark:text-gray-400 line-through" 
-              : "text-gray-900 dark:text-gray-100"
+              ? "text-black/40 dark:text-white/40 line-through" 
+              : "text-black dark:text-white"
           }`}>
             {task.title}
           </h3>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {dueDateStatus.status && (
             <div
-              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold ${
                 dueDateStatus.status === "overdue"
-                  ? "text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30"
+                  ? "text-black dark:text-white bg-black/10 dark:bg-white/10"
                   : dueDateStatus.status === "due-soon"
-                  ? "text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30"
-                  : "text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30"
+                  ? "text-black dark:text-white bg-black/5 dark:bg-white/5"
+                  : "text-black dark:text-white bg-black/5 dark:bg-white/5"
               }`}
             >
               {dueDateStatus.status === "overdue" && (
-                <AlertCircle size={12} />
+                <AlertCircle size={10} />
               )}
               {dueDateStatus.status === "due-soon" && dueDateStatus.daysUntil === 0
                 ? "Today"
@@ -296,39 +296,37 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
                     setShowMenu(!showMenu);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-opacity ${
-                    isLocked ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                  }`}
+                  className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-all opacity-100"
                   aria-label="Task options"
                   type="button"
                 >
-                  <MoreVertical size={14} className="text-gray-500 dark:text-gray-400" />
+                  <MoreVertical size={16} className="text-black dark:text-white" />
                 </button>
               {showMenu && (
-                <div className="absolute right-0 top-6 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[120px]">
+                <div className="absolute right-0 top-6 z-50 bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[120px]">
                   {onEdit && !isLocked && (
                     <button
                       onClick={handleEdit}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
                       type="button"
                     >
-                      <Edit2 size={14} />
+                      <Edit2 size={12} />
                       Edit
                     </button>
                   )}
                   {onEdit && isLocked && (
-                    <div className="w-full text-left px-3 py-2 text-sm text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
-                      <Edit2 size={14} />
+                    <div className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black/40 dark:text-white/40 flex items-center gap-2 cursor-not-allowed font-bold">
+                      <Edit2 size={12} />
                       Edit (Locked)
                     </div>
                   )}
                   {onDelete && (
                     <button
                       onClick={handleDelete}
-                      className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
                       type="button"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
                       Delete
                     </button>
                   )}
@@ -339,19 +337,19 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
         </div>
       </div>
       {task.description && (
-        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed mb-2">
+        <p className="text-xs text-black/60 dark:text-white/60 line-clamp-2 leading-relaxed mb-2 font-bold">
           {task.description}
         </p>
       )}
       {dueDate && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <Calendar size={12} />
+        <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
+          <Calendar size={14} className="text-black dark:text-white flex-shrink-0" />
           <span>{formatDateToDDMMYYYY(dueDate)}</span>
         </div>
       )}
       {isLocked && timeUntilDeletion && (
-        <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <Clock size={12} />
+        <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
+          <Clock size={14} className="text-black dark:text-white flex-shrink-0" />
           <span>Auto-delete in: {timeUntilDeletion}</span>
         </div>
       )}

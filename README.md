@@ -1,6 +1,6 @@
 # Kibble - Kanban Board
 
-A drag-and-drop kanban board built with Next.js 15, Prisma, and dnd-kit.
+A drag-and-drop kanban board built with Next.js 16, React 19, Prisma 6, and dnd-kit.
 
 ## Features
 
@@ -82,10 +82,12 @@ kibble/
 
 ## Tech Stack
 
-- **Next.js 15** - React framework
+- **Next.js 16** - React framework (App Router)
+- **React 19** - UI library
 - **TypeScript** - Type safety
-- **Prisma** - Database ORM
+- **Prisma 6** - Database ORM
 - **PostgreSQL** - Database
+- **NextAuth v5** - Authentication
 - **dnd-kit** - Drag and drop
 - **Tailwind CSS** - Styling
 

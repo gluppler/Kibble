@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { checkTaskPermission, checkColumnBoardMatch } from "@/lib/permissions";
 
 export async function PATCH(
   request: Request,
@@ -8,19 +9,20 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerAuthSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
     const body = await request.json();
     const { title, description, columnId, order, dueDate } = body;
 
-    // First, verify task ownership through board
+    // Check task permission using permission utility
+    const permissionCheck = await checkTaskPermission(id, session);
+    if (!permissionCheck.allowed) {
+      return NextResponse.json(
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
+      );
+    }
+
+    // Get existing task for validation
     const existingTask = await db.task.findUnique({
       where: { id },
       include: {
@@ -39,34 +41,18 @@ export async function PATCH(
       );
     }
 
-    // Strict ownership check: verify board belongs to user
-    if (existingTask.column.board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only edit your own tasks" },
-        { status: 403 }
-      );
-    }
-
     // If columnId is being changed, verify new column belongs to same board
     if (columnId && columnId !== existingTask.columnId) {
-      const newColumn = await db.column.findUnique({
-        where: { id: columnId },
-        include: {
-          board: true,
-        },
-      });
-
-      if (!newColumn) {
+      const columnCheck = await checkColumnBoardMatch(
+        columnId,
+        existingTask.column.boardId,
+        session!.user.id
+      );
+      
+      if (!columnCheck.allowed) {
         return NextResponse.json(
-          { error: "Column not found" },
-          { status: 404 }
-        );
-      }
-
-      if (newColumn.board.userId !== session.user.id || newColumn.boardId !== existingTask.column.boardId) {
-        return NextResponse.json(
-          { error: "Forbidden: Cannot move task to different board" },
-          { status: 403 }
+          { error: columnCheck.error },
+          { status: columnCheck.statusCode || 403 }
         );
       }
     }
@@ -105,13 +91,7 @@ export async function PATCH(
       finalColumnId = columnId !== undefined ? columnId : existingTask.columnId;
       finalOrder = order !== undefined ? order : existingTask.order;
       
-      console.log(`[TASK UPDATE] Processing update for task ${id}:`, {
-        providedColumnId: columnId,
-        currentColumnId: existingTask.columnId,
-        isMovingColumn,
-        providedOrder: order,
-        currentOrder: existingTask.order,
-      });
+      // Processing task update
       
       // Get the new column to check its title (always fetch fresh from DB)
       let newColumn = null;
@@ -129,7 +109,7 @@ export async function PATCH(
           );
         }
         
-        console.log(`[TASK UPDATE] Found target column: ${newColumn.title} (${newColumn.id})`);
+        // Found target column
       } else {
         newColumn = existingTask.column;
       }
@@ -140,12 +120,12 @@ export async function PATCH(
         if (newColumn.title === "Done") {
           updateData.locked = true;
           updateData.movedToDoneAt = new Date();
-          console.log(`Task ${id} moved to Done column - locking task`);
+          // Task moved to Done column - locking task
         } else if (existingTask.column.title === "Done") {
           // Unlock if moving away from Done
           updateData.locked = false;
           updateData.movedToDoneAt = null;
-          console.log(`Task ${id} moved away from Done column - unlocking task`);
+          // Task moved away from Done column - unlocking task
         }
         
         // Get all tasks in the new column (excluding the one being moved)
@@ -198,14 +178,6 @@ export async function PATCH(
         // This MUST be set for persistence to work
         updateData.columnId = finalColumnId;
         updateData.order = adjustedOrder;
-        
-        console.log(`[TASK UPDATE] Column move prepared:`, {
-          taskId: id,
-          fromColumn: existingTask.columnId,
-          toColumn: finalColumnId,
-          newOrder: adjustedOrder,
-          updateDataKeys: Object.keys(updateData),
-        });
       }
       // If reordering within same column (not moving columns)
       else if (!isMovingColumn && order !== undefined && order !== existingTask.order) {
@@ -266,12 +238,8 @@ export async function PATCH(
     // Only update if there's something to update
     if (Object.keys(updateData).length === 0) {
       // Return existing task if no changes
-      console.log(`[TASK UPDATE] No changes detected for task ${id}`);
       return NextResponse.json(existingTask);
     }
-
-    // Log what we're updating
-    console.log(`[TASK UPDATE] Updating task ${id} with data:`, JSON.stringify(updateData, null, 2));
 
     // Perform the update - ensure it's committed
     let task;
@@ -294,14 +262,6 @@ export async function PATCH(
         select: { id: true, columnId: true, order: true, locked: true },
       });
       
-      console.log(`[TASK UPDATE] Task ${id} updated successfully:`, {
-        returnedColumnId: task.columnId,
-        returnedOrder: task.order,
-        verifiedColumnId: verifyTask?.columnId,
-        verifiedOrder: verifyTask?.order,
-        locked: task.locked,
-      });
-      
       // Double-check the update persisted
       if (isMovingColumn && verifyTask) {
         if (verifyTask.columnId !== finalColumnId) {
@@ -311,7 +271,7 @@ export async function PATCH(
             { status: 500 }
           );
         }
-        console.log(`[TASK UPDATE] Verification passed: columnId correctly updated to ${verifyTask.columnId}`);
+        // Verification passed: columnId correctly updated
       }
     } catch (updateError) {
       console.error(`[TASK UPDATE] Database update failed:`, updateError);
@@ -334,40 +294,14 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerAuthSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
 
-    // Verify task ownership through board
-    const task = await db.task.findUnique({
-      where: { id },
-      include: {
-        column: {
-          include: {
-            board: true,
-          },
-        },
-      },
-    });
-
-    if (!task) {
+    // Check task permission using permission utility
+    const permissionCheck = await checkTaskPermission(id, session);
+    if (!permissionCheck.allowed) {
       return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
-    }
-
-    // Strict ownership check: verify board belongs to user
-    if (task.column.board.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Forbidden: You can only delete your own tasks" },
-        { status: 403 }
+        { error: permissionCheck.error },
+        { status: permissionCheck.statusCode || 403 }
       );
     }
 

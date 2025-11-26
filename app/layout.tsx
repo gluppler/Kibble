@@ -4,13 +4,25 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Kibble - Kanban Board",
-  description: "A drag-and-drop kanban board built with Next.js",
+  description: "A minimalist drag-and-drop kanban board built with Next.js",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", type: "image/png" },
+    ],
+  },
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -20,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
+      <body className="antialiased font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
