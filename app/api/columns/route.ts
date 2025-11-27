@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(column, { status: 201 });
   } catch (error) {
-    console.error("Error creating column:", error);
+    logError("Error creating column:", error);
     return NextResponse.json(
       { error: "Failed to create column" },
       { status: 500 }

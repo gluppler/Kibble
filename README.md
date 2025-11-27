@@ -1,12 +1,13 @@
 # 🎓 Kibble
 
-A lightweight, full-stack web application designed to help students organize coursework and manage academic deadlines. Kibble features secure data isolation for each user, class-based task categories, and a visual Kanban board for tracking progress with intelligent alerts.
+A modern, full-stack task management application designed to help students and professionals organize their work with class-based boards, intelligent alerts, and a beautiful Kanban interface. Built with Next.js 16, React 19, and TypeScript for maximum performance and type safety.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
 ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?style=flat-square&logo=typescript)
 ![Prisma](https://img.shields.io/badge/Prisma-6.19-2D3748?style=flat-square&logo=prisma)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-336791?style=flat-square&logo=postgresql)
+![Vitest](https://img.shields.io/badge/Vitest-4.0-6E9F18?style=flat-square&logo=vitest)
 
 ## 📋 Table of Contents
 
@@ -15,41 +16,47 @@ A lightweight, full-stack web application designed to help students organize cou
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
 - [Core Architecture](#-core-architecture)
-- [Complex Logic Documentation](#-complex-logic-documentation)
+- [Recent Improvements](#-recent-improvements)
 - [API Routes](#-api-routes)
 - [Database Schema](#-database-schema)
 - [Security](#-security)
+- [Testing](#-testing)
 - [Deployment](#-deployment)
 - [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
 
 ## ✨ Features
 
 ### 📚 Class-Based Task Management
-- **Multiple Boards**: Create separate boards for different classes or subjects
-- **Organized Structure**: Each board contains its own columns and tasks
-- **Easy Navigation**: Quick access to all your classes via sidebar
+- **Multiple Boards**: Create separate boards for different classes, subjects, or projects
+- **Organized Structure**: Each board contains its own columns and tasks with complete isolation
+- **Easy Navigation**: Quick access to all boards via responsive sidebar
 - **Board CRUD**: Create, edit, archive, and delete boards with confirmation dialogs
-- **Board Archiving**: Archive boards to preserve history without deletion
-- **Real-time Updates**: Archive changes sync across tabs and sessions
+- **Board Archiving**: Archive boards to preserve history without permanent deletion
+- **Real-time Updates**: Archive changes sync across tabs and sessions instantly
+- **Persistent Selection**: Board selection persists across page refreshes using localStorage
 
-### 📋 Kanban Board
-- **Drag & Drop**: Intuitive drag-and-drop interface for task and column management
-- **Multiple Views**: Switch between Kanban, Table, Grid, and List views
-- **Task Organization**: Organize tasks across columns (To-Do, In-Progress, Review, Done)
-- **Task Locking**: Tasks automatically lock when moved to "Done" column
+### 📋 Kanban Board & Multiple Views
+- **Drag & Drop**: Intuitive drag-and-drop interface for tasks and columns with mobile touch support
+- **Multiple Views**: Switch seamlessly between Kanban, Table, Grid, and List views
+- **Task Organization**: Organize tasks across customizable columns (To-Do, In-Progress, Review, Done)
+- **Task Locking**: Tasks automatically lock when moved to "Done" column to preserve completion state
 - **Auto-Archive**: Tasks in "Done" column are automatically archived after 24 hours
 - **Manual Archive**: Archive tasks and boards manually for better organization
 - **Column Reordering**: Drag columns to reorder them horizontally
-- **Task Creation Restriction**: Tasks can only be created in the "To-Do" column
+- **Task Creation Restriction**: Tasks can only be created in the "To-Do" column to enforce workflow
+- **Responsive Column Wrapping**: Columns automatically wrap vertically on mobile and when window is resized
+- **Optimistic UI Updates**: Instant feedback with no page refreshes during drag-and-drop operations
 
 ### 📦 Archive System
-- **Archive Tab**: Dedicated page for viewing archived tasks and boards
-- **Real-time Updates**: Archive changes update in real-time across all tabs
-- **Restore Functionality**: Restore archived items back to active boards
-- **CSV Export**: Export archived tasks and boards to CSV for backup
+- **Archive Tab**: Dedicated page for viewing archived tasks and boards (visible on mobile)
+- **Real-time Updates**: Archive changes update in real-time across all tabs using localStorage events
+- **Restore Functionality**: Restore archived items back to active boards with one click
+- **CSV Export**: Export archived tasks and boards to CSV for backup and analysis
 - **Auto-Archive**: Automatic archiving of tasks after 24 hours in "Done" column
 - **Manual Archive**: Archive boards and tasks manually for organization
 - **Event-Driven Updates**: Uses localStorage events and CustomEvents for cross-tab synchronization
+- **Polling with Visibility API**: Efficient background updates only when tab is visible
 
 ### 🔔 Intelligent Alerts
 - **Due Date Alerts**: Real-time notifications for upcoming and overdue tasks
@@ -59,64 +66,79 @@ A lightweight, full-stack web application designed to help students organize cou
 - **Alert Persistence**: Alerts persist across page refreshes
 - **Visibility API Integration**: Optimizes alert checking when tab is hidden
 - **Duplicate Prevention**: Stable alert IDs prevent duplicate notifications
+- **Alert Validation**: Robust validation prevents errors from invalid alert data
 
 ### 🔒 Security & Privacy
-- **User Authentication**: Secure email/password authentication with NextAuth.js
+- **User Authentication**: Secure email/password authentication with NextAuth.js v5
 - **Multi-Factor Authentication (MFA)**: TOTP-based two-factor authentication with QR code setup
-- **Password Reset**: Secure password reset flow with email tokens
-- **Password Uniqueness**: Enforces unique passwords across all users
+- **Password Reset**: Secure MFA-based password reset flow with recovery codes
+- **Password Uniqueness**: Enforces unique passwords across all users for enhanced security
 - **Data Isolation**: Each user's data is completely isolated and secure
 - **Permission System**: Comprehensive permission checks for all operations
 - **Secure Sessions**: JWT-based session management
 - **Input Validation**: Zod schema validation on all inputs
 - **Row Level Security (RLS)**: Database-level security policies for sensitive tables
 - **Security Logging**: Comprehensive logging of security events
+- **Rate Limiting**: Protection against brute-force attacks
 
 ### 🎨 User Experience
 - **Dark Mode**: Beautiful dark and light themes with system preference detection
-- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile
+- **Responsive Design**: Fully responsive design that works seamlessly on desktop, tablet, and mobile
+- **Mobile-First**: Optimized for mobile with proper touch targets and responsive column wrapping
 - **Smooth Animations**: Polished UI with Framer Motion animations
-- **Real-time Updates**: Optimistic UI updates for instant feedback
-- **Accessibility**: ARIA labels and keyboard navigation support
+- **Real-time Updates**: Optimistic UI updates for instant feedback without page refreshes
+- **Accessibility**: ARIA labels, keyboard navigation support, and proper semantic HTML
 - **Locale-Aware Dates**: Date picker shows format hints based on user's locale
 - **Black & White Minimal Design**: Clean, minimal interface with high contrast
+- **PWA Support**: Progressive Web App with service worker and install prompt
+- **Navigation Fixes**: Robust board loading when navigating between pages
+
+### 🚀 Performance Optimizations
+- **Memoized Components**: React.memo for frequently rendered components (KanbanTask, KanbanColumn)
+- **Optimized Re-renders**: useCallback and useMemo for expensive computations
+- **Code Deduplication**: Shared utilities for date formatting and common operations
+- **Centralized Logging**: Development-only logging with no production information leakage
+- **Bundle Optimization**: Removed duplicate code and unused imports
+- **Efficient State Management**: Optimistic updates reduce unnecessary API calls
 
 ## 🛠️ Tech Stack
 
 ### Frontend
 - **Next.js 16** - React framework with App Router and Turbopack
-- **React 19** - UI library with hooks
-- **TypeScript 5.9** - Type safety
+- **React 19** - UI library with modern hooks
+- **TypeScript 5.9** - Full type safety
 - **Tailwind CSS 3.4** - Utility-first CSS framework
-- **Framer Motion 12** - Animation library
-- **Lucide React** - Icon library
+- **Framer Motion 12** - Smooth animations and transitions
+- **Lucide React** - Beautiful icon library
 
 ### Backend
-- **Next.js API Routes** - Serverless API endpoints
+- **Next.js API Routes** - Serverless API endpoints optimized for Vercel
 - **NextAuth.js v5** - Authentication and session management
-- **Prisma 6.19** - Next-generation ORM
-- **PostgreSQL** - Relational database
-- **bcryptjs** - Password hashing
-- **Zod** - Schema validation
+- **Prisma 6.19** - Next-generation ORM with type safety
+- **PostgreSQL** - Robust relational database
+- **bcryptjs** - Secure password hashing
+- **Zod 4.1** - Runtime schema validation
 - **otplib** - TOTP (Time-based One-Time Password) for MFA
 - **qrcode** - QR code generation for MFA setup
 
 ### Drag & Drop
-- **@dnd-kit/core** - Drag and drop core library
-- **@dnd-kit/sortable** - Sortable components
-- **@dnd-kit/utilities** - Utility functions
+- **@dnd-kit/core** - Modern drag and drop library
+- **@dnd-kit/sortable** - Sortable components for lists
+- **@dnd-kit/utilities** - Utility functions for drag operations
+- **Mobile Touch Support**: Optimized touch sensors for mobile devices
 
 ### Development Tools
-- **Vitest** - Unit testing framework
-- **ESLint** - Code linting
+- **Vitest 4.0** - Fast unit testing framework
+- **@testing-library/react** - React component testing
+- **ESLint** - Code linting with Next.js rules
 - **TypeScript** - Static type checking
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- **Node.js** 20+ (or 22+)
-- **PostgreSQL** database (local or hosted on Supabase)
+- **Node.js** 20+ (or 22+ recommended)
+- **PostgreSQL** database (local or hosted on Supabase/other providers)
 - **npm** or **yarn** package manager
 
 ### Installation
@@ -187,7 +209,8 @@ kibble/
 │   │   ├── auth/                 # Authentication endpoints
 │   │   │   ├── [...nextauth]/    # NextAuth.js handlers
 │   │   │   ├── register/         # User registration
-│   │   │   ├── mfa/              # MFA setup, verify, disable
+│   │   │   ├── mfa/              # MFA setup, verify, disable, login
+│   │   │   ├── check-mfa/        # MFA status check
 │   │   │   └── password/         # Password reset flow
 │   │   ├── archive/              # Archive operations
 │   │   │   ├── boards/           # Archived boards API
@@ -203,78 +226,91 @@ kibble/
 │   │   ├── tasks/                # Task operations
 │   │   │   ├── [id]/             # Individual task operations
 │   │   │   │   └── archive/      # Task archiving
+│   │   │   ├── alerts/           # Task alerts API
 │   │   │   └── cleanup/          # Auto-archive cleanup
 │   │   └── user/                 # User management
-│   │       └── delete/            # Account deletion
+│   │       └── delete/           # Account deletion
 │   ├── auth/                     # Authentication pages
 │   │   ├── signin/               # Sign-in page
-│   │   └── password/             # Password reset pages
-│   │       └── reset/            # Password reset confirmation
-│   ├── archive/                  # Archive page
-│   │   └── page.tsx              # Archive management UI
-│   ├── settings/                 # Settings page
-│   ├── layout.tsx                 # Root layout with providers
-│   ├── page.tsx                   # Main dashboard
-│   ├── providers.tsx              # Context providers wrapper
-│   └── globals.css                # Global styles
-├── components/                    # React components
+│   │   └── password/              # Password reset pages
+│   │       └── reset/             # Password reset confirmation
+│   ├── archive/                   # Archive page
+│   │   └── page.tsx               # Archive management UI
+│   ├── settings/                  # Settings page
+│   ├── layout.tsx                  # Root layout with providers
+│   ├── page.tsx                    # Main dashboard
+│   ├── providers.tsx               # Context providers wrapper
+│   ├── register-sw.tsx            # Service worker registration
+│   └── globals.css                 # Global styles with responsive utilities
+├── components/                     # React components
 │   ├── kanban-board.tsx           # Main Kanban board component
-│   ├── kanban-column.tsx          # Column component
-│   ├── kanban-task.tsx            # Task card component
-│   ├── board-table-view.tsx      # Table view implementation
-│   ├── board-grid-view.tsx       # Grid view implementation
-│   ├── board-list-view.tsx       # List view implementation
-│   ├── layout-selector.tsx       # View mode selector
-│   ├── sidebar.tsx               # Navigation sidebar
+│   ├── kanban-column.tsx          # Column component (memoized)
+│   ├── kanban-task.tsx            # Task card component (memoized)
+│   ├── board-table-view.tsx       # Table view implementation
+│   ├── board-grid-view.tsx        # Grid view implementation
+│   ├── board-list-view.tsx        # List view implementation
+│   ├── layout-selector.tsx        # View mode selector
+│   ├── sidebar.tsx                # Navigation sidebar
 │   ├── notification-system.tsx    # Alert notification panel
-│   ├── create-board-dialog.tsx   # Board creation dialog
-│   ├── edit-board-dialog.tsx     # Board editing dialog
-│   ├── edit-task-dialog.tsx      # Task editing dialog
-│   └── delete-confirmation-dialog.tsx # Confirmation dialogs
-├── contexts/                      # React contexts
+│   ├── create-board-dialog.tsx    # Board creation dialog
+│   ├── edit-board-dialog.tsx      # Board editing dialog
+│   ├── edit-task-dialog.tsx       # Task editing dialog
+│   ├── delete-confirmation-dialog.tsx # Confirmation dialogs
+│   ├── pwa-install-prompt.tsx     # PWA install prompt
+│   └── orientation-handler.tsx    # Device orientation handler
+├── contexts/                       # React contexts
 │   ├── alert-context.tsx          # Alert management context
-│   ├── layout-context.tsx        # Layout preferences context
-│   └── theme-context.tsx         # Theme management context
-├── lib/                           # Utilities and helpers
-│   ├── db.ts                     # Prisma client (singleton)
-│   ├── auth.ts                   # NextAuth configuration
-│   ├── permissions.ts            # Permission checking utilities
-│   ├── alert-utils.ts            # Alert calculation and formatting
-│   ├── mfa-utils.ts              # MFA TOTP utilities
-│   ├── password-utils.ts         # Password validation and uniqueness
-│   ├── date-utils.ts             # Locale-aware date formatting
-│   ├── archive-events.ts         # Archive event system
-│   ├── security-logger.ts       # Security event logging
-│   └── types.ts                  # TypeScript type definitions
-├── server/                        # Server-side utilities
-│   └── auth.ts                   # Auth session helper
-├── prisma/                        # Database schema
-│   ├── schema.prisma             # Prisma schema definition
+│   ├── layout-context.tsx         # Layout preferences context
+│   └── theme-context.tsx          # Theme management context
+├── lib/                            # Utilities and helpers
+│   ├── db.ts                      # Prisma client (singleton pattern)
+│   ├── auth.ts                    # NextAuth configuration
+│   ├── permissions.ts             # Permission checking utilities
+│   ├── alert-utils.ts             # Alert calculation and formatting
+│   ├── date-formatters.ts         # Shared date formatting utilities
+│   ├── date-utils.ts              # Locale-aware date utilities
+│   ├── mfa-utils.ts               # MFA TOTP utilities
+│   ├── password-utils.ts          # Password validation and uniqueness
+│   ├── archive-events.ts          # Archive event system
+│   ├── security-logger.ts        # Security event logging
+│   ├── rate-limit.ts              # Rate limiting utilities
+│   ├── logger.ts                  # Centralized logging (dev only)
+│   └── types.ts                   # TypeScript type definitions
+├── server/                         # Server-side utilities
+│   └── auth.ts                    # Auth session helper
+├── prisma/                         # Database schema
+│   ├── schema.prisma              # Prisma schema definition
 │   ├── migrations/                # Database migrations
-│   ├── RLS_NOTES.md              # Row Level Security documentation
+│   ├── RLS_NOTES.md               # Row Level Security documentation
 │   └── MIGRATION_TROUBLESHOOTING.md # Migration troubleshooting guide
-├── tests/                         # Test files
-│   ├── auth.test.ts              # Authentication tests
-│   ├── auth-security.test.ts     # Security tests
-│   ├── api-tasks.test.ts         # Task API tests
-│   ├── permissions.test.ts       # Permission system tests
-│   ├── task-persistence.test.ts  # Task persistence tests
-│   ├── column-behavior.test.ts   # Column behavior tests
-│   ├── due-date-alerts.test.ts   # Alert system tests
-│   ├── account-deletion.test.ts  # Account deletion tests
+├── tests/                          # Test files
+│   ├── auth.test.ts               # Authentication tests
+│   ├── auth-security.test.ts      # Security tests
+│   ├── api-tasks.test.ts          # Task API tests
+│   ├── permissions.test.ts        # Permission system tests
+│   ├── task-persistence.test.ts   # Task persistence tests
+│   ├── column-behavior.test.ts     # Column behavior tests
+│   ├── due-date-alerts.test.ts    # Alert system tests
+│   ├── account-deletion.test.ts   # Account deletion tests
 │   ├── password-uniqueness.test.ts # Password uniqueness tests
-│   ├── archive-realtime.test.ts # Archive real-time update tests
-│   └── setup.ts                  # Test setup configuration
-├── public/                        # Static assets
-├── types/                         # Type definitions
-│   └── next-auth.d.ts            # NextAuth type extensions
-├── scripts/                       # Utility scripts
-│   └── test-db-connection.ts    # Database connection test
-├── next.config.js                 # Next.js configuration
-├── tailwind.config.ts             # Tailwind CSS configuration
-├── tsconfig.json                  # TypeScript configuration
-├── vercel.json                    # Vercel deployment configuration
-└── package.json                   # Dependencies and scripts
+│   ├── password-reset-mfa.test.ts # MFA password reset tests
+│   ├── archive-realtime.test.ts   # Archive real-time update tests
+│   ├── board-navigation.test.ts   # Board loading navigation tests
+│   └── setup.ts                   # Test setup configuration
+├── public/                         # Static assets
+│   ├── manifest.json              # PWA manifest
+│   ├── sw.js                      # Service worker
+│   └── icon.svg                   # App icon
+├── types/                          # Type definitions
+│   └── next-auth.d.ts             # NextAuth type extensions
+├── scripts/                        # Utility scripts
+│   └── test-db-connection.ts      # Database connection test
+├── next.config.js                  # Next.js configuration
+├── tailwind.config.ts              # Tailwind CSS configuration
+├── tsconfig.json                   # TypeScript configuration
+├── vitest.config.ts                # Vitest test configuration
+├── vercel.json                     # Vercel deployment configuration
+└── package.json                    # Dependencies and scripts
 ```
 
 ## 🏗️ Core Architecture
@@ -303,17 +339,48 @@ kibble/
 User Action → Component → API Route → Permission Check → Database → Response → UI Update
 ```
 
+## 🆕 Recent Improvements
+
+### Navigation & Board Loading Fixes
+- **Fixed Board Loading**: Boards now load correctly when navigating back from Archive, Settings, or after Sign Out
+- **Pathname Detection**: Added `usePathname()` to detect navigation to main page
+- **State Reset**: Automatically resets loading state when returning to main page
+- **Board Creation**: Ensures boards are loaded before creating new boards after navigation
+
+### Performance Optimizations
+- **Component Memoization**: Added `React.memo` to `KanbanTask` and `KanbanColumn` components
+- **Code Deduplication**: Removed duplicate date formatting functions, using shared utilities
+- **Unused Import Removal**: Cleaned up unused imports (e.g., `Clock` from grid view)
+- **Optimistic Updates**: Eliminated unnecessary page refreshes during drag-and-drop operations
+
+### Mobile UI/UX Enhancements
+- **Responsive Column Wrapping**: Columns wrap vertically on mobile instead of horizontal scroll
+- **Archive Tab Visibility**: Archive tab is now visible in mobile sidebar
+- **Touch Optimization**: Improved drag-and-drop touch handling for mobile devices
+- **Column Scaling**: Columns properly scale and wrap when window is resized
+
+### Code Quality
+- **Centralized Logging**: All `console.error/warn/log` replaced with `logError/logWarn/logInfo` from `@/lib/logger`
+- **Development-Only Logging**: Logging only occurs in development mode to prevent information leakage
+- **Type Safety**: Centralized type definitions in `lib/types.ts` to avoid duplication
+- **Error Handling**: Robust validation and error handling throughout the codebase
+
+### Testing
+- **Fixed Failing Tests**: Updated password reset MFA tests to test logic directly instead of HTTP calls
+- **New Test Coverage**: Added `board-navigation.test.ts` for navigation scenarios
+- **All Tests Passing**: 175 tests passing, 5 skipped (180 total)
+
 ## 🧠 Complex Logic Documentation
 
 ### 1. Drag and Drop Algorithm
 
 **Location**: `components/kanban-board.tsx` - `handleDragEnd` function
 
-The drag-and-drop system handles both task and column reordering with complex order recalculation.
+The drag-and-drop system handles both task and column reordering with complex order recalculation and optimistic UI updates.
 
 #### Task Dragging Logic
 
-**Algorithm Steps:**
+**Algorithm Steps**:
 
 1. **Determine Drop Target**:
    ```typescript
@@ -333,6 +400,7 @@ The drag-and-drop system handles both task and column reordering with complex or
    - Creates deep copy of board structure to ensure React detects changes
    - Removes task from source column, adds to target column
    - Recalculates order for all affected tasks
+   - **No page refresh** - uses functional state updates
 
 3. **Database Order Recalculation**:
    ```typescript
@@ -360,15 +428,11 @@ The drag-and-drop system handles both task and column reordering with complex or
    - If moving TO "Done" column: `locked = true`, `movedToDoneAt = new Date()`
    - If moving FROM "Done" column: `locked = false`, `movedToDoneAt = null`
 
-5. **Verification**:
-   - After database update, verifies the change persisted correctly
-   - Refetches board to ensure consistency
-
 **Complexity**: O(n) where n is the number of tasks in affected columns
 
 #### Column Reordering Logic
 
-**Algorithm Steps:**
+**Algorithm Steps**:
 
 1. **Calculate New Position**:
    ```typescript
@@ -448,7 +512,7 @@ if (newColumn.title === "Done") {
          where: {
            movedToDoneAt: { lte: twentyFourHoursAgo },
            locked: true,
-           archived: false, // Only archive tasks that aren't already archived
+           archived: false,
          },
        },
      },
@@ -511,7 +575,6 @@ The archive system uses a multi-pronged approach for real-time updates:
        }
      }, 30000); // Poll every 30 seconds when tab is visible
      
-     // Also listen for visibility changes
      document.addEventListener('visibilitychange', handleVisibilityChange);
    }, []);
    ```
@@ -567,7 +630,6 @@ async function verifyBackupCode(userId: string, code: string): Promise<boolean> 
   const codes = JSON.parse(user.mfaBackupCodes);
   for (const hashedCode of codes) {
     if (await bcrypt.compare(code, hashedCode)) {
-      // Remove used backup code
       await removeBackupCode(userId, code);
       return true;
     }
@@ -612,7 +674,7 @@ export async function isPasswordUnique(
 
 **Location**: `app/api/tasks/[id]/route.ts` - Order recalculation logic
 
-This is one of the most complex parts of the system, handling order updates when tasks are moved.
+This handles order updates when tasks are moved between columns or reordered within the same column.
 
 #### Moving Between Columns
 
@@ -640,7 +702,6 @@ This is one of the most complex parts of the system, handling order updates when
 
 3. **Shift Tasks in Target Column**:
    ```typescript
-   // Increment orders for tasks at or after insertion point
    await db.task.updateMany({
      where: {
        columnId: finalColumnId,
@@ -662,32 +723,6 @@ This is one of the most complex parts of the system, handling order updates when
    });
    ```
 
-#### Reordering Within Same Column
-
-**Algorithm**:
-
-1. **Determine Direction**:
-   ```typescript
-   if (oldOrder < adjustedOrder) {
-     // Moving down - decrement orders between old and new
-   } else if (oldOrder > adjustedOrder) {
-     // Moving up - increment orders between new and old
-   }
-   ```
-
-2. **Shift Affected Tasks**:
-   ```typescript
-   // Moving down example
-   await db.task.updateMany({
-     where: {
-       columnId: existingTask.columnId,
-       order: { gt: oldOrder, lte: adjustedOrder },
-       id: { not: existingTask.id },
-     },
-     data: { order: { decrement: 1 } },
-   });
-   ```
-
 **Complexity**: O(n) database operations where n is number of affected tasks
 
 ### 7. Optimistic UI Updates
@@ -699,15 +734,12 @@ This is one of the most complex parts of the system, handling order updates when
 **Implementation**:
 
 ```typescript
-// 1. Update local state immediately
-const updatedBoard: Board = {
-  ...board,
-  columns: board.columns.map(col => {
-    // Remove from source, add to target
-    // Recalculate orders
-  }),
-};
-setBoard(updatedBoard);
+// 1. Update local state immediately (no page refresh)
+setBoard((prevBoard) => {
+  if (!prevBoard || !updatedTask) return prevBoard;
+  // Create updated board with task moved
+  return syncedBoard;
+});
 
 // 2. Persist to database
 const response = await fetch(`/api/tasks/${taskId}`, {
@@ -715,14 +747,17 @@ const response = await fetch(`/api/tasks/${taskId}`, {
   body: JSON.stringify({ columnId: newColumnId, order: newOrder }),
 });
 
-// 3. Refetch to ensure consistency
-await fetchBoard();
+// 3. On error, refetch to restore correct state
+if (!response.ok) {
+  await fetchBoard();
+}
 ```
 
 **Benefits**:
 - Instant user feedback
 - Perceived performance improvement
 - Automatic rollback on error (via refetch)
+- No page refreshes during drag-and-drop
 
 ### 8. Alert System Architecture
 
@@ -737,7 +772,6 @@ function checkTaskAlert(task: Task): Alert | null {
   if (!task.dueDate) return null;
   
   const daysUntil = calculateDaysUntil(dueDate);
-  const urgency = getAlertUrgency(daysUntil);
   
   // Alert if overdue, due today, due tomorrow, or due within 10 days
   if (daysUntil < 0 || daysUntil === 0 || daysUntil === 1 || daysUntil <= 10) {
@@ -784,11 +818,9 @@ if (exists) return prev; // Prevent duplicate
 **Permission Management**:
 ```typescript
 async function requestNotificationPermission(): Promise<NotificationPermission> {
-  // Security checks
   if (!window.isSecureContext) return 'denied';
   if (!('Notification' in window)) return 'denied';
   
-  // Request permission
   return await Notification.requestPermission();
 }
 ```
@@ -797,35 +829,44 @@ async function requestNotificationPermission(): Promise<NotificationPermission> 
 - Uses stable tags to prevent duplicate browser notifications
 - Same tag = browser replaces existing notification
 - Tracks sent notifications to prevent duplicates
-- Prevents notifications on auth pages to avoid duplicate tabs
+- Prevents notifications on auth pages
 
-### 9. Locale-Aware Date Formatting
+### 9. Responsive Column Wrapping
 
-**Location**: `lib/date-utils.ts`
+**Location**: `app/globals.css` - `.kanban-columns-container` and `.kanban-column-wrapper`
 
-#### Date Format Detection
+#### Mobile-First Approach
 
-```typescript
-function getLocaleDateFormat(): string {
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+**Mobile (< 640px)**:
+- 2 columns per row
+- Vertical wrapping when space is tight
+- No horizontal scroll
+
+**Desktop (≥ 1024px)**:
+- Flexible column sizing based on available space
+- Wraps when columns don't fit (even with 10% overflow)
+- Uses `flex: 1 1` with `min-width` to force wrapping
+
+**Implementation**:
+```css
+.kanban-columns-container {
+  display: flex;
+  flex-wrap: wrap;
+  overflow-x: hidden;
+  gap: clamp(0.5rem, 1.5vw, 1rem);
+}
+
+.kanban-column-wrapper {
+  /* Mobile: 2 columns per row */
+  width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
   
-  const parts = formatter.formatToParts(new Date(2024, 0, 15));
-  const month = parts.find(p => p.type === 'month')?.value;
-  const day = parts.find(p => p.type === 'day')?.value;
-  
-  // Determine if locale uses DD/MM or MM/DD
-  return day === '15' ? 'DD/MM/YYYY' : 'MM/DD/YYYY';
+  /* Desktop: flexible with wrapping */
+  @media (min-width: 1024px) {
+    flex: 1 1 calc((100% - (3 * gap)) / 4) !important;
+    min-width: 200px !important;
+  }
 }
 ```
-
-**Usage in UI**:
-- Shows format hint: "Format: DD/MM/YYYY HH:MM" or "Format: MM/DD/YYYY HH:MM"
-- Provides tooltip on date input
-- Helps users understand expected format
 
 ### 10. Permission System
 
@@ -915,7 +956,6 @@ export const db =
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;
 } else {
-  // In production (serverless), also store in global
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = db;
   }
@@ -926,114 +966,6 @@ if (process.env.NODE_ENV !== "production") {
 - Prevents connection exhaustion
 - Reuses connections across serverless invocations
 - Works in both development and production
-
-### 12. Column Width Calculation
-
-**Location**: `components/kanban-board.tsx` - `columnWidthStyle` useMemo
-
-**Problem**: Columns need to fit on one page while maintaining readability.
-
-**Solution**: Dynamic width calculation based on column count:
-
-```typescript
-const columnWidthStyle = useMemo(() => {
-  if (columnCount === 0) return { width: '100%' };
-  
-  // For 4 or fewer columns: equal distribution
-  if (columnCount <= 4) {
-    return { 
-      flex: '1 1 0%', // Equal distribution
-      minWidth: 0,
-      maxWidth: '100%',
-    };
-  }
-  
-  // For more than 4 columns: calculated width with scroll
-  const totalGaps = columnCount - 1;
-  return {
-    width: `clamp(200px, calc((100% - 2.5rem - ${totalGaps}rem) / ${columnCount}), 350px)`,
-    minWidth: '200px',
-    maxWidth: '350px',
-    flexShrink: 0,
-  };
-}, [columnCount]);
-```
-
-**Formula**: `(container width - padding - gaps) / column count`, clamped between 200px and 350px
-
-### 13. View Mode System
-
-**Location**: `contexts/layout-context.tsx`, `components/layout-selector.tsx`
-
-**Supported Views**:
-- **Kanban**: Traditional column-based board with drag-and-drop
-- **Table**: Spreadsheet-like view with checkmarks
-- **Grid**: Card-based grid layout
-- **List**: Compact list format
-
-**Implementation**:
-- Context stores current layout preference
-- Layout selector component switches between views
-- Each view component receives same board data
-- Views are conditionally rendered based on context
-
-### 14. Task Creation Restriction
-
-**Location**: `components/kanban-column.tsx`, `app/api/tasks/route.ts`
-
-**Rule**: Tasks can only be created in the "To-Do" column.
-
-**Client-Side**:
-```typescript
-const canCreateTasks = column.title === "To-Do";
-
-// Only show "Add task" button in To-Do column
-{canCreateTasks ? (
-  <button onClick={() => setIsAddingTask(true)}>+ Add task</button>
-) : null}
-```
-
-**Server-Side Validation**:
-```typescript
-if (column.title !== "To-Do") {
-  return NextResponse.json(
-    { error: "Tasks can only be created in the 'To-Do' column" },
-    { status: 400 }
-  );
-}
-```
-
-**Rationale**: Enforces workflow - all tasks start in To-Do, then progress through columns.
-
-### 15. Auto-Cleanup Scheduling
-
-**Location**: `components/kanban-board.tsx` - useEffect hook
-
-**Implementation**:
-```typescript
-useEffect(() => {
-  // Periodic cleanup every 5 minutes
-  const cleanupInterval = setInterval(async () => {
-    await fetch("/api/tasks/cleanup", { method: "POST" });
-    await fetchBoard(); // Refresh board after cleanup
-  }, 5 * 60 * 1000);
-  
-  // Initial cleanup on mount
-  const initialCleanup = async () => {
-    await fetch("/api/tasks/cleanup", { method: "POST" });
-    await fetchBoard();
-  };
-  initialCleanup();
-  
-  return () => clearInterval(cleanupInterval);
-}, [fetchBoard]);
-```
-
-**Process**:
-1. Runs immediately on component mount
-2. Runs every 5 minutes thereafter
-3. Archives tasks in Done column older than 24 hours
-4. Refetches board to reflect changes
 
 ## 🔌 API Routes
 
@@ -1076,47 +1008,53 @@ All API routes are optimized for Vercel serverless with:
 #### `GET /api/auth/mfa/status`
 - Returns MFA status for current user
 
+#### `POST /api/auth/check-mfa`
+- Checks if user has MFA enabled after password verification
+
 #### `POST /api/auth/password/reset/request`
-- Initiates password reset flow
-- Generates secure reset token
-- Stores hashed token with expiration
+- Initiates MFA-based password reset flow
+- Returns MFA status and recovery code availability
+- Generic response to prevent email enumeration
 
 #### `POST /api/auth/password/reset/confirm`
-- Confirms password reset with token
-- Validates token and expiration
-- Enforces password uniqueness
-- Updates password and invalidates token
+- Confirms password reset with TOTP or recovery code
+- Validates code and enforces password uniqueness
+- Updates password and invalidates all sessions
 
 ### Archive Routes
 
 #### `GET /api/archive/tasks`
 - Returns all archived tasks for authenticated user
 - Includes task details and archive timestamp
+- Ordered by archive date (newest first)
 
 #### `GET /api/archive/boards`
 - Returns all archived boards for authenticated user
 - Includes board details and archive timestamp
+- Ordered by archive date (newest first)
 
-#### `POST /api/archive/export`
+#### `GET /api/archive/export`
 - Exports archived tasks and/or boards to CSV
 - Returns CSV file for download
+- Includes all task/board metadata
 
 ### Board Routes
 
 #### `GET /api/boards/list`
-- Returns all user's boards (active and archived)
-- Filters by `userId`
+- Returns all user's active boards
+- Filters by `userId` and `archived: false`
 - Ordered by creation date (newest first)
 
 #### `POST /api/boards`
 - Creates new board with default columns
 - Default columns: To-Do, In-Progress, Review, Done
-- Returns created board
+- Returns created board in consistent format
 
 #### `GET /api/boards/[id]`
 - Fetches board with all columns and tasks
 - Permission check: user must own the board
 - Includes nested relations (columns → tasks)
+- Excludes archived tasks from main view
 
 #### `PATCH /api/boards/[id]`
 - Updates board title
@@ -1133,6 +1071,11 @@ All API routes are optimized for Vercel serverless with:
 - Sets `archived = true` and `archivedAt = timestamp`
 - Permission check required
 
+#### `DELETE /api/boards/[id]/archive`
+- Unarchives (restores) board
+- Sets `archived = false` and `archivedAt = null`
+- Permission check required
+
 #### `GET /api/boards/user`
 - Returns user's first board (by creation date)
 - Used for initial board selection
@@ -1144,6 +1087,7 @@ All API routes are optimized for Vercel serverless with:
 - **Restriction**: Only in "To-Do" column
 - Calculates order (max order + 1)
 - Validates title and columnId
+- Handles optional description and dueDate
 
 #### `PATCH /api/tasks/[id]`
 - Updates task (title, description, dueDate, columnId, order)
@@ -1152,12 +1096,18 @@ All API routes are optimized for Vercel serverless with:
 - **Verification**: Double-checks update persisted
 
 #### `DELETE /api/tasks/[id]`
-- Deletes task
+- Deletes task permanently
 - Permission check required
+- Cascade updates order in column
 
 #### `POST /api/tasks/[id]/archive`
 - Archives task manually
 - Sets `archived = true` and `archivedAt = timestamp`
+- Permission check required
+
+#### `DELETE /api/tasks/[id]/archive`
+- Unarchives (restores) task
+- Sets `archived = false` and `archivedAt = null`
 - Permission check required
 
 #### `POST /api/tasks/cleanup`
@@ -1168,12 +1118,19 @@ All API routes are optimized for Vercel serverless with:
 #### `GET /api/tasks/cleanup`
 - Returns tasks approaching 24-hour mark
 - Used for preview/notification purposes
+- Shows time until archive
+
+#### `GET /api/tasks/alerts`
+- Returns tasks with due dates that need alerts
+- Used by notification system
+- Filters by user's boards
 
 ### Column Routes
 
 #### `POST /api/columns`
 - Creates new column
 - Calculates order (max order + 1)
+- Validates title and boardId
 
 #### `PATCH /api/columns/[id]`
 - Updates column order
@@ -1186,6 +1143,7 @@ All API routes are optimized for Vercel serverless with:
 - Deletes user account and all associated data
 - Requires password re-authentication
 - Cascade deletes: boards → columns → tasks
+- Invalidates all sessions
 
 ## 🗄️ Database Schema
 
@@ -1305,7 +1263,7 @@ RLS is enabled for the `PasswordResetToken` table in Supabase:
 - **Password Uniqueness**: Enforces unique passwords across all users
 - **Password Strength**: Minimum 8 characters required
 - **Secure Hashing**: bcrypt with appropriate salt rounds
-- **Password Reset**: Secure token-based reset flow with expiration
+- **Password Reset**: Secure MFA-based reset flow with expiration
 
 ### Input Validation
 - **Zod Schemas**: Type-safe validation
@@ -1317,12 +1275,55 @@ RLS is enabled for the `PasswordResetToken` table in Supabase:
 - **Generic Messages**: No sensitive data in error responses
 - **Development vs Production**: Detailed errors only in development
 - **Fail Securely**: Default to denying access
+- **Centralized Logging**: Development-only logging prevents information leakage
 
 ### Security Logging
 - **Security Events**: Comprehensive logging of security events
 - **IP Tracking**: Client IP address logging
 - **User Agent Tracking**: Browser/user agent logging
-- **Event Types**: Login attempts, password resets, MFA setup, etc.
+- **Event Types**: Login attempts, password resets, MFA setup, permission denials, etc.
+
+## 🧪 Testing
+
+### Test Suite
+
+Kibble includes a comprehensive test suite with **180 test cases** (175 passing, 5 skipped):
+
+- **Authentication Tests** (`auth.test.ts`): 17 tests
+- **Security Tests** (`auth-security.test.ts`): 19 tests (5 skipped)
+- **Task API Tests** (`api-tasks.test.ts`): 16 tests
+- **Permission Tests** (`permissions.test.ts`): 22 tests
+- **Task Persistence Tests** (`task-persistence.test.ts`): 19 tests
+- **Column Behavior Tests** (`column-behavior.test.ts`): 11 tests
+- **Due Date Alerts Tests** (`due-date-alerts.test.ts`): 22 tests
+- **Account Deletion Tests** (`account-deletion.test.ts`): 21 tests
+- **Password Uniqueness Tests** (`password-uniqueness.test.ts`): 8 tests
+- **Password Reset MFA Tests** (`password-reset-mfa.test.ts`): 9 tests
+- **Archive Real-time Tests** (`archive-realtime.test.ts`): 6 tests
+- **Board Navigation Tests** (`board-navigation.test.ts`): 10 tests (new)
+
+### Running Tests
+
+```bash
+# Run tests in watch mode
+npm run test
+
+# Run tests once
+npm run test:run
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### Test Configuration
+
+- **Framework**: Vitest 4.0
+- **Environment**: jsdom (browser simulation)
+- **Setup**: `tests/setup.ts` (mocks Next.js router, NextAuth, etc.)
+- **Coverage**: v8 provider with HTML, JSON, and text reports
 
 ## 🌐 Deployment
 
@@ -1361,10 +1362,10 @@ Kibble is optimized for Vercel serverless deployment.
 ### Build Process
 
 1. **Prisma Generate**: Generates Prisma Client
-2. **Next.js Build**: Compiles application
+2. **Next.js Build**: Compiles application with Turbopack
 3. **Optimization**: Tree-shaking, code splitting, image optimization
 
-## 🧪 Development
+## 🛠️ Development
 
 ### Available Scripts
 
@@ -1395,65 +1396,15 @@ npm run test:coverage # Run with coverage
 - **ESLint**: Next.js recommended rules
 - **Formatting**: Consistent indentation and naming
 - **Comments**: JSDoc comments for complex functions
+- **Logging**: Centralized logger (development only)
 
-### Testing
+### Best Practices
 
-Test files are located in `tests/` directory:
-- `auth.test.ts` - Authentication tests
-- `auth-security.test.ts` - Security tests
-- `api-tasks.test.ts` - Task API tests
-- `permissions.test.ts` - Permission system tests
-- `task-persistence.test.ts` - Task persistence tests
-- `column-behavior.test.ts` - Column behavior tests
-- `due-date-alerts.test.ts` - Alert system tests
-- `account-deletion.test.ts` - Account deletion tests
-- `password-uniqueness.test.ts` - Password uniqueness tests
-- `archive-realtime.test.ts` - Archive real-time update tests
-
-## 📚 Key Design Decisions
-
-### Why Optimistic UI Updates?
-
-- **User Experience**: Instant feedback feels more responsive
-- **Perceived Performance**: Users see changes immediately
-- **Error Handling**: Automatic rollback via refetch on error
-
-### Why Task Locking?
-
-- **Workflow Enforcement**: Prevents editing completed tasks
-- **Data Integrity**: Ensures Done tasks remain unchanged
-- **Auto-Archive**: Enables automatic archiving after 24 hours (tasks are hidden but can be restored)
-
-### Why Only Create Tasks in To-Do?
-
-- **Workflow**: Enforces proper task progression
-- **Organization**: All tasks start in the same place
-- **Clarity**: Clear entry point for new tasks
-
-### Why Multiple View Modes?
-
-- **User Preference**: Different users prefer different views
-- **Use Cases**: Table view for data analysis, Kanban for workflow
-- **Accessibility**: Some users find certain views easier to use
-
-### Why Singleton Prisma Client?
-
-- **Serverless Optimization**: Prevents connection exhaustion
-- **Performance**: Reuses connections across invocations
-- **Resource Management**: Efficient connection pooling
-
-### Why Archive Instead of Delete?
-
-- **Data Preservation**: Users can restore archived items
-- **History**: Maintains complete task and board history
-- **Export**: Enables CSV export for backup
-- **Recovery**: Prevents accidental data loss
-
-### Why Real-time Archive Updates?
-
-- **User Experience**: Immediate feedback across all tabs
-- **Consistency**: Ensures all tabs show the same data
-- **Efficiency**: Combines polling, events, and Visibility API
+- **Component Memoization**: Use `React.memo` for frequently rendered components
+- **Callback Optimization**: Use `useCallback` for event handlers
+- **Memoization**: Use `useMemo` for expensive computations
+- **Error Handling**: Always use centralized logger, never `console.error` in production
+- **Type Safety**: Centralize type definitions to avoid duplication
 
 ## 🐛 Troubleshooting
 
@@ -1486,12 +1437,29 @@ Test files are located in `tests/` directory:
 - Remove any `webpack` configuration from `next.config.js`
 - Use Turbopack configuration instead
 
+### Navigation Issues
+
+**Issue**: Boards not loading after navigation
+- Fixed in latest version with pathname detection
+- Ensure `usePathname()` is imported from `next/navigation`
+- Check that `hasLoadedBoards` ref is reset when boards array is empty
+
+**Issue**: Board creation fails after navigation
+- Fixed in latest version - ensures boards are loaded first
+- Check that `handleCreateBoard` calls `loadBoards()` if needed
+
 ### Drag and Drop Issues
 
 **Issue**: Tasks not moving correctly
 - Check browser console for errors
 - Verify API route is responding
 - Check network tab for failed requests
+- Ensure touch sensors are configured for mobile
+
+**Issue**: Drag not working on mobile
+- Verify `TouchSensor` is configured with proper delay
+- Check `touchAction` CSS property is set correctly
+- Ensure columns are properly sized for mobile
 
 ### Alert Issues
 
@@ -1529,4 +1497,4 @@ ISC
 
 ---
 
-**Made with ❤️ for students who want to stay organized**
+**Made with ❤️ for students and professionals who want to stay organized**

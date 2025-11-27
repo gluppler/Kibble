@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { logSecurityEvent, getClientIP, getUserAgent } from "@/lib/security-logger";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
       message: "MFA disabled successfully",
     });
   } catch (error) {
-    console.error("Error disabling MFA:", error);
+    logError("Error disabling MFA:", error);
     return NextResponse.json(
       { error: "Failed to disable MFA" },
       { status: 500 }

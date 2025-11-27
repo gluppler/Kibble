@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkTaskPermission } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -63,7 +64,7 @@ export async function POST(
       message: "Task archived successfully",
     });
   } catch (error) {
-    console.error("Error archiving task:", error);
+    logError("Error archiving task:", error);
     return NextResponse.json(
       { error: "Failed to archive task" },
       { status: 500 }
@@ -115,7 +116,7 @@ export async function DELETE(
       message: "Task restored successfully",
     });
   } catch (error) {
-    console.error("Error unarchiving task:", error);
+    logError("Error unarchiving task:", error);
     return NextResponse.json(
       { error: "Failed to restore task" },
       { status: 500 }

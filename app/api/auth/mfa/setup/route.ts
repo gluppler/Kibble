@@ -15,6 +15,7 @@ import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { generateMFASecret, hashBackupCodes } from "@/lib/mfa-utils";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -80,7 +81,7 @@ export async function POST() {
       backupCodes, // User must save these - only shown once
     });
   } catch (error) {
-    console.error("Error setting up MFA:", error);
+    logError("Error setting up MFA:", error);
     return NextResponse.json(
       { error: "Failed to set up MFA" },
       { status: 500 }

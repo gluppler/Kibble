@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkColumnPermission } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -110,7 +111,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedColumn);
   } catch (error) {
-    console.error("Error updating column:", error);
+    logError("Error updating column:", error);
     return NextResponse.json(
       { error: "Failed to update column" },
       { status: 500 }

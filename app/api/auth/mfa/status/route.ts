@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -52,7 +53,7 @@ export async function GET() {
       mfaEnabled: user.mfaEnabled || false,
     });
   } catch (error) {
-    console.error("Error fetching MFA status:", error);
+    logError("Error fetching MFA status:", error);
     return NextResponse.json(
       { error: "Failed to fetch MFA status" },
       { status: 500 }

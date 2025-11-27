@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { validatePassword } from "@/lib/password-utils";
+import { logError } from "@/lib/logger";
 
 const registerSchema = z.object({
   name: z.string().optional(),
@@ -130,13 +131,13 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     // Fail securely - log error internally but return generic message
-    console.error("Error registering user:", error);
+    logError("Error registering user:", error);
     
     // Check for specific Prisma errors that might indicate schema issues
     if (error instanceof Error) {
       // If it's a known error, we can provide more context in development
       if (process.env.NODE_ENV === "development") {
-        console.error("Registration error details:", error.message);
+        logError("Registration error details:", error.message);
       }
     }
     

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
       message: `Archived ${taskIdsToArchive.length} task(s) that were in Done column for more than 24 hours`,
     });
   } catch (error) {
-    console.error("Error archiving tasks:", error);
+    logError("Error archiving tasks:", error);
     return NextResponse.json(
       { error: "Failed to archive tasks" },
       { status: 500 }
@@ -155,7 +156,7 @@ export async function GET(request: Request) {
       count: tasksWithArchiveInfo.length,
     });
   } catch (error) {
-    console.error("Error fetching archive info:", error);
+    logError("Error fetching archive info:", error);
     return NextResponse.json(
       { error: "Failed to fetch archive info" },
       { status: 500 }

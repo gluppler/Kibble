@@ -24,6 +24,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { logSecurityEvent, getClientIP, getUserAgent } from "@/lib/security-logger";
@@ -176,7 +177,7 @@ export async function DELETE(request: Request) {
     );
   } catch (error) {
     // Fail securely - log error internally but return generic message
-    console.error("Error deleting account:", error);
+    logError("Error deleting account:", error);
     
     return NextResponse.json(
       { error: "Failed to delete account" },

@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -157,7 +158,7 @@ export async function GET(request: Request) {
       });
     }
   } catch (error) {
-    console.error("Error exporting archive:", error);
+    logError("Error exporting archive:", error);
     return NextResponse.json(
       { error: "Failed to export archive" },
       { status: 500 }

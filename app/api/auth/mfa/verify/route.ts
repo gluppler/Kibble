@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import { verifyTOTP, validateTOTPFormat } from "@/lib/mfa-utils";
 import { z } from "zod";
 import { logSecurityEvent, getClientIP, getUserAgent } from "@/lib/security-logger";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
-    console.error("Error verifying MFA:", error);
+    logError("Error verifying MFA:", error);
     return NextResponse.json(
       { error: "Failed to verify MFA code" },
       { status: 500 }

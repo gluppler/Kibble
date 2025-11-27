@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(responseBoard, { status: 201 });
   } catch (error) {
-    console.error("Error creating board:", error);
+    logError("Error creating board:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       { 

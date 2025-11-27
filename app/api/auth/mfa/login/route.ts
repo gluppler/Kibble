@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyTOTP, verifyBackupCode, removeBackupCode, validateTOTPFormat } from "@/lib/mfa-utils";
 import { z } from "zod";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       backupCodeUsed: isBackupCode,
     });
   } catch (error) {
-    console.error("Error verifying MFA for login:", error);
+    logError("Error verifying MFA for login:", error);
     return NextResponse.json(
       { error: "Failed to verify MFA code" },
       { status: 500 }

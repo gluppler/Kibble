@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkBoardPermission } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -62,7 +63,7 @@ export async function POST(
       message: "Board archived successfully",
     });
   } catch (error) {
-    console.error("Error archiving board:", error);
+    logError("Error archiving board:", error);
     return NextResponse.json(
       { error: "Failed to archive board" },
       { status: 500 }
@@ -113,7 +114,7 @@ export async function DELETE(
       message: "Board restored successfully",
     });
   } catch (error) {
-    console.error("Error unarchiving board:", error);
+    logError("Error unarchiving board:", error);
     return NextResponse.json(
       { error: "Failed to restore board" },
       { status: 500 }

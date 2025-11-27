@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       mfaEnabled: user.mfaEnabled || false,
     });
   } catch (error) {
-    console.error("Error checking MFA status:", error);
+    logError("Error checking MFA status:", error);
     return NextResponse.json(
       { error: "Failed to check MFA status" },
       { status: 500 }

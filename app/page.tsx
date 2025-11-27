@@ -19,7 +19,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { KanbanBoard } from "@/components/kanban-board";
 import { Sidebar } from "@/components/sidebar";
@@ -52,6 +52,7 @@ export default function Home() {
   // Session and routing
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   
   // Board state
   const [boards, setBoards] = useState<Board[]>([]);
@@ -139,7 +140,8 @@ export default function Home() {
    * Fixed: Added ref tracking to prevent duplicate loads.
    */
   const loadBoards = useCallback(async () => {
-    // Prevent duplicate loads
+    // Prevent duplicate loads only if boards are already loaded
+    // Allow reload if boards array is empty (e.g., after navigation)
     if (hasLoadedBoards.current && boards.length > 0) {
       return;
     }
@@ -220,7 +222,29 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [createDefaultBoard, router, boards.length]);
+  }, [createDefaultBoard, router]);
+
+  /**
+   * Reset boards state when navigating to main page
+   * 
+   * This effect ensures that when users navigate back to the main page,
+   * the boards state is reset and ready to reload.
+   * 
+   * Fixed: Detects navigation to main page and resets loading state.
+   * Fixed: Handles both component remount and navigation scenarios.
+   */
+  useEffect(() => {
+    // When on main page (pathname === "/") and authenticated
+    if (pathname === "/" && status === "authenticated") {
+      // Reset ref if boards are empty (user navigated back from another page)
+      // This ensures boards will reload when returning to main page
+      if (boards.length === 0) {
+        hasLoadedBoards.current = false;
+        // Also reset loading state to show loading indicator
+        setLoading(true);
+      }
+    }
+  }, [pathname, status, boards.length]);
 
   /**
    * Authentication and board loading effect
@@ -228,8 +252,10 @@ export default function Home() {
    * Redirects unauthenticated users to sign-in page.
    * Loads boards when user is authenticated.
    * 
-   * Fixed: Added proper dependency array and loading state check.
-   * Fixed: Use ref to prevent multiple simultaneous loads.
+   * Fixed: Reset ref on mount/navigation to ensure boards load when returning to page.
+   * Fixed: Load boards whenever authenticated and boards array is empty, regardless of ref state.
+   * Fixed: Proper dependency array to prevent infinite loops.
+   * Fixed: Also checks pathname to ensure we're on the main page before loading.
    */
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -237,11 +263,12 @@ export default function Home() {
       return;
     }
 
-    // Only load boards when authenticated and boards haven't been loaded yet
-    if (status === "authenticated" && !hasLoadedBoards.current && boards.length === 0) {
+    // Only load boards when on main page and authenticated
+    // This prevents loading boards when on other pages
+    if (pathname === "/" && status === "authenticated" && !hasLoadedBoards.current) {
       loadBoards();
     }
-  }, [status, router, loadBoards, boards.length]);
+  }, [status, router, loadBoards, pathname]);
 
   /**
    * Handles board creation
@@ -249,9 +276,16 @@ export default function Home() {
    * @param title - Title for the new board
    * 
    * Creates a new board, refetches the boards list, and sets the new board as active.
+   * 
+   * Fixed: Ensures boards are loaded before and after creation to handle navigation edge cases.
    */
   const handleCreateBoard = async (title: string) => {
     try {
+      // Ensure boards are loaded first (in case we're returning from another page)
+      if (!hasLoadedBoards.current || boards.length === 0) {
+        await loadBoards();
+      }
+
       const res = await fetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
