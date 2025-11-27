@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
-import { checkAuthentication } from "@/lib/permissions";
+import { checkAuthentication, validateIdFormat } from "@/lib/permissions";
 import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
@@ -47,14 +47,10 @@ export async function GET() {
       );
     }
 
-    // Security: Validate user ID format to prevent injection
+    // Security: Validate user ID format using centralized validation
+    // This prevents injection attacks and ensures consistent validation across the app
     const userId = session.user.id;
-    if (
-      typeof userId !== "string" ||
-      userId.length === 0 ||
-      userId.length > 255 ||
-      /[<>'"&;]/.test(userId) // Basic XSS/injection prevention
-    ) {
+    if (!validateIdFormat(userId, "userId")) {
       logError("Invalid user ID format:", { userId: userId?.substring(0, 10) });
       return NextResponse.json(
         { error: "Invalid request" },

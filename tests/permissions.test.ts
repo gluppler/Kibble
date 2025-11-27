@@ -117,6 +117,32 @@ describe('Permission Utilities', () => {
       expect(result.error).toContain('not found');
       expect(result.statusCode).toBe(404);
     });
+
+    it('should reject invalid boardId format', async () => {
+      const result = await checkBoardOwnership('', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid board ID');
+    });
+
+    it('should reject invalid userId format', async () => {
+      const result = await checkBoardOwnership('board-1', '');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid user ID');
+    });
+
+    it('should reject boardId with SQL injection patterns', async () => {
+      const result = await checkBoardOwnership("board-1'; DROP TABLE--", 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+    });
+
+    it('should reject userId with SQL injection patterns', async () => {
+      const result = await checkBoardOwnership('board-1', "user-1'; DROP TABLE--");
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+    });
   });
 
   describe('checkTaskOwnership', () => {
@@ -157,6 +183,46 @@ describe('Permission Utilities', () => {
       expect(result.allowed).toBe(false);
       expect(result.statusCode).toBe(404);
     });
+
+    it('should reject invalid taskId format', async () => {
+      const result = await checkTaskOwnership('', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid task ID');
+    });
+
+    it('should reject invalid userId format', async () => {
+      const result = await checkTaskOwnership('task-1', '');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid user ID');
+    });
+
+    it('should handle task missing column relationship', async () => {
+      mockDb.task.findUnique.mockResolvedValue({
+        id: 'task-1',
+        column: null,
+      });
+
+      const result = await checkTaskOwnership('task-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(404);
+      expect(result.error).toContain('Task column not found');
+    });
+
+    it('should handle task column missing board relationship', async () => {
+      mockDb.task.findUnique.mockResolvedValue({
+        id: 'task-1',
+        column: {
+          board: null,
+        },
+      });
+
+      const result = await checkTaskOwnership('task-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(404);
+      expect(result.error).toContain('Task board not found');
+    });
   });
 
   describe('checkColumnOwnership', () => {
@@ -183,6 +249,52 @@ describe('Permission Utilities', () => {
       const result = await checkColumnOwnership('column-1', 'user-1');
       expect(result.allowed).toBe(false);
       expect(result.statusCode).toBe(403);
+    });
+
+    it('should reject invalid columnId format', async () => {
+      const result = await checkColumnOwnership('', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid column ID');
+    });
+
+    it('should reject invalid userId format', async () => {
+      const result = await checkColumnOwnership('column-1', '');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid user ID');
+    });
+
+    it('should reject columnId with SQL injection patterns', async () => {
+      const result = await checkColumnOwnership("column-1'; DROP TABLE--", 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+    });
+
+    it('should reject userId with SQL injection patterns', async () => {
+      const result = await checkColumnOwnership('column-1', "user-1'; DROP TABLE--");
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+    });
+
+    it('should handle column missing board relationship', async () => {
+      mockDb.column.findUnique.mockResolvedValue({
+        id: 'column-1',
+        board: null,
+      });
+
+      const result = await checkColumnOwnership('column-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(404);
+      expect(result.error).toContain('Column board not found');
+    });
+
+    it('should return 404 for non-existent column', async () => {
+      mockDb.column.findUnique.mockResolvedValue(null);
+
+      const result = await checkColumnOwnership('column-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(404);
     });
   });
 
@@ -228,6 +340,19 @@ describe('Permission Utilities', () => {
       expect(result.allowed).toBe(false);
       expect(result.statusCode).toBe(401);
     });
+
+    it('should reject invalid userId format', () => {
+      const result = checkAlertsListAccess('');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid user ID');
+    });
+
+    it('should reject userId with SQL injection patterns', () => {
+      const result = checkAlertsListAccess("user-1'; DROP TABLE--");
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+    });
   });
 
   describe('checkColumnBoardMatch', () => {
@@ -271,6 +396,39 @@ describe('Permission Utilities', () => {
       const result = await checkColumnBoardMatch('column-2', 'board-1', 'user-1');
       expect(result.allowed).toBe(false);
       expect(result.statusCode).toBe(403);
+    });
+
+    it('should reject invalid columnId format', async () => {
+      const result = await checkColumnBoardMatch('', 'board-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid column ID');
+    });
+
+    it('should reject invalid sourceBoardId format', async () => {
+      const result = await checkColumnBoardMatch('column-1', '', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid source board ID');
+    });
+
+    it('should reject invalid userId format', async () => {
+      const result = await checkColumnBoardMatch('column-1', 'board-1', '');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.error).toContain('Invalid user ID');
+    });
+
+    it('should handle column missing board relationship', async () => {
+      mockDb.column.findUnique.mockResolvedValue({
+        id: 'column-1',
+        board: null,
+      });
+
+      const result = await checkColumnBoardMatch('column-1', 'board-1', 'user-1');
+      expect(result.allowed).toBe(false);
+      expect(result.statusCode).toBe(404);
+      expect(result.error).toContain('Column board not found');
     });
   });
 

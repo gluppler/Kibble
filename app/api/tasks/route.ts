@@ -38,26 +38,75 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check column ownership using permission utility
-    const columnCheck = await checkColumnOwnership(columnId, session!.user.id);
-    if (!columnCheck.allowed) {
+    // Validate columnId format
+    if (typeof columnId !== "string" || columnId.trim().length === 0) {
       return NextResponse.json(
-        { error: columnCheck.error },
+        { error: "Invalid column ID" },
+        { status: 400 }
+      );
+    }
+
+    // Check column ownership using permission utility
+    let columnCheck;
+    try {
+      columnCheck = await checkColumnOwnership(columnId, session!.user.id);
+    } catch (checkError) {
+      logError("Error in checkColumnOwnership:", checkError);
+      return NextResponse.json(
+        { error: "Failed to verify column ownership" },
+        { status: 500 }
+      );
+    }
+
+    if (!columnCheck.allowed) {
+      logError("Column ownership check failed:", {
+        columnId,
+        userId: session!.user.id,
+        error: columnCheck.error,
+        statusCode: columnCheck.statusCode,
+      });
+      return NextResponse.json(
+        { error: columnCheck.error || "Failed to verify column ownership" },
         { status: columnCheck.statusCode || 403 }
       );
     }
 
     // Get column details for validation
-    const column = await db.column.findUnique({
-      where: { id: columnId },
-      include: {
-        board: true,
-      },
-    });
+    let column;
+    try {
+      column = await db.column.findUnique({
+        where: { id: columnId },
+        include: {
+          board: {
+            select: {
+              id: true,
+              userId: true,
+              title: true,
+            },
+          },
+        },
+      });
+    } catch (dbError) {
+      logError("Database error fetching column:", dbError);
+      return NextResponse.json(
+        { error: "Database error" },
+        { status: 500 }
+      );
+    }
 
     if (!column) {
+      logError("Column not found after ownership check:", { columnId });
       return NextResponse.json(
         { error: "Column not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify board relationship exists
+    if (!column.board) {
+      logError("Column missing board relationship:", { columnId });
+      return NextResponse.json(
+        { error: "Column board not found" },
         { status: 404 }
       );
     }
