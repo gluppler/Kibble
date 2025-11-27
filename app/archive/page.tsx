@@ -80,8 +80,9 @@ export default function ArchivePage() {
    * Fetches archived items from the API
    * 
    * @param silent - If true, uses refreshing state instead of loading state (for background updates)
+   * @param fetchBoth - If true, fetches both boards and tasks regardless of active tab (for initial load)
    */
-  const fetchArchivedItems = useCallback(async (silent = false) => {
+  const fetchArchivedItems = useCallback(async (silent = false, fetchBoth = false) => {
     if (!silent) {
       setLoading(true);
     } else {
@@ -89,16 +90,35 @@ export default function ArchivePage() {
     }
     setError("");
     try {
-      if (activeTab === "boards") {
-        const res = await fetch("/api/archive/boards");
-        if (!res.ok) throw new Error("Failed to fetch archived boards");
-        const data = await res.json();
-        setBoards(data.boards || []);
+      // If fetchBoth is true (initial load), fetch both boards and tasks
+      // This ensures counts are accurate when switching tabs
+      if (fetchBoth) {
+        const [boardsRes, tasksRes] = await Promise.all([
+          fetch("/api/archive/boards"),
+          fetch("/api/archive/tasks"),
+        ]);
+        
+        if (!boardsRes.ok) throw new Error("Failed to fetch archived boards");
+        if (!tasksRes.ok) throw new Error("Failed to fetch archived tasks");
+        
+        const boardsData = await boardsRes.json();
+        const tasksData = await tasksRes.json();
+        
+        setBoards(boardsData.boards || []);
+        setTasks(tasksData.tasks || []);
       } else {
-        const res = await fetch("/api/archive/tasks");
-        if (!res.ok) throw new Error("Failed to fetch archived tasks");
-        const data = await res.json();
-        setTasks(data.tasks || []);
+        // Normal fetch based on active tab
+        if (activeTab === "boards") {
+          const res = await fetch("/api/archive/boards");
+          if (!res.ok) throw new Error("Failed to fetch archived boards");
+          const data = await res.json();
+          setBoards(data.boards || []);
+        } else {
+          const res = await fetch("/api/archive/tasks");
+          if (!res.ok) throw new Error("Failed to fetch archived tasks");
+          const data = await res.json();
+          setTasks(data.tasks || []);
+        }
       }
     } catch (err) {
       logError("Error fetching archived items:", err);
@@ -112,12 +132,22 @@ export default function ArchivePage() {
     }
   }, [activeTab]);
 
-  // Fetch archived items on mount and tab change
+  // Fetch archived items on mount (fetch both for accurate counts)
   useEffect(() => {
     if (status === "authenticated" && session?.user?.id) {
-      fetchArchivedItems();
+      // On initial mount, fetch both boards and tasks to ensure counts are accurate
+      fetchArchivedItems(false, true);
     }
-  }, [status, session, activeTab, fetchArchivedItems]);
+  }, [status, session, fetchArchivedItems]);
+
+  // Fetch archived items when tab changes (only fetch the active tab)
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.id) {
+      // When tab changes, only fetch the active tab (optimization)
+      // But if the other tab hasn't been loaded yet, fetch it too
+      fetchArchivedItems(false, false);
+    }
+  }, [activeTab, status, session, fetchArchivedItems]);
 
   /**
    * Real-time updates for archive page

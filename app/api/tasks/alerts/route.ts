@@ -39,11 +39,13 @@ export async function GET() {
 
     // Fetch all tasks with due dates in a single query
     // This avoids N+1 queries by getting all tasks at once
+    // Security: Exclude archived tasks and tasks in archived boards
     const tasks = await db.task.findMany({
       where: {
         column: {
           board: {
             userId: session.user.id,
+            archived: false, // Only check tasks in non-archived boards
           },
         },
         dueDate: { not: null },
@@ -55,6 +57,7 @@ export async function GET() {
         title: true,
         dueDate: true,
         locked: true,
+        archived: true, // Include archived status for client-side validation
         columnId: true,
         column: {
           select: {
@@ -64,6 +67,7 @@ export async function GET() {
               select: {
                 id: true,
                 userId: true,
+                archived: true, // Include board archived status for client-side validation
               },
             },
           },

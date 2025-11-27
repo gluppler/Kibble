@@ -70,8 +70,21 @@ export function getAlertUrgency(daysUntil: number): AlertUrgency {
  * 
  * @param task - Task to check
  * @returns Alert object if alert should be shown, null otherwise
+ * 
+ * Security:
+ * - Excludes archived tasks (archived tasks should not show alerts)
+ * - Excludes tasks in archived boards (tasks in archived boards should not show alerts)
  */
 export function checkTaskAlert(task: Task): Alert | null {
+  // Security: Don't show alerts for archived tasks
+  if (task.archived) return null;
+  
+  // Security: Don't show alerts for tasks in archived boards
+  // Check if task's column's board is archived (if column relation is included)
+  // Type assertion needed because Task type may not include column relation
+  const taskWithColumn = task as Task & { column?: { board?: { archived?: boolean } } };
+  if (taskWithColumn.column?.board?.archived) return null;
+  
   if (!task.dueDate) return null;
 
   const dueDate = task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate);
