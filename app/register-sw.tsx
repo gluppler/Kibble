@@ -11,12 +11,24 @@ import { useEffect } from "react";
 
 export function RegisterServiceWorker() {
   useEffect(() => {
-    // Only register in production and if service workers are supported
-    if (
-      typeof window !== "undefined" &&
-      "serviceWorker" in navigator &&
-      process.env.NODE_ENV === "production"
-    ) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      return;
+    }
+
+    // In development, unregister any existing service workers to prevent interference
+    if (process.env.NODE_ENV === "development") {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister().catch(() => {
+            // Ignore unregistration errors
+          });
+        });
+      });
+      return;
+    }
+
+    // Only register in production
+    if (process.env.NODE_ENV === "production") {
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
@@ -24,17 +36,9 @@ export function RegisterServiceWorker() {
           setInterval(() => {
             registration.update();
           }, 60 * 60 * 1000);
-
-          // Only log in development
-          if (process.env.NODE_ENV === "development") {
-            // Service Worker registered successfully
-          }
         })
-        .catch((error) => {
-          // Only log in development
-          if (process.env.NODE_ENV === "development") {
-            // Service Worker registration failed (silent in production)
-          }
+        .catch(() => {
+          // Silently fail in production
         });
     }
   }, []);

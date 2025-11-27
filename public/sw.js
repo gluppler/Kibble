@@ -27,9 +27,9 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((error) => {
-        // Log error but don't fail installation
-        console.warn('Service Worker: Failed to cache some assets', error);
+      return cache.addAll(STATIC_ASSETS).catch(() => {
+        // Silently fail - don't expose errors to prevent information leakage
+        // Installation will continue even if some assets fail to cache
       });
     })
   );
@@ -74,36 +74,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API routes - network-first strategy
+  // API routes - network-only strategy (no caching)
+  // API responses should never be cached to avoid stale data and error responses
+  // Security: Never cache API responses to prevent serving stale or error responses
   if (url.pathname.startsWith('/api/')) {
+    // Always fetch from network, never cache
+    // This prevents:
+    // 1. Serving stale data
+    // 2. Serving cached error responses (e.g., 500 errors)
+    // 3. Security issues from cached sensitive data
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Only cache successful responses
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(API_CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+      fetch(request.clone()).catch(() => {
+        // Only return offline response if network completely fails
+        // Never serve cached API responses as they may be stale or error responses
+        // Security: Generic error message prevents information leakage
+        return new Response(
+          JSON.stringify({ error: 'Network error - please check your connection' }),
+          {
+            status: 503,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+            },
           }
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cache if network fails
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Return offline response for API calls
-            return new Response(
-              JSON.stringify({ error: 'Offline - please check your connection' }),
-              {
-                status: 503,
-                headers: { 'Content-Type': 'application/json' },
-              }
-            );
-          });
-        })
+        );
+      })
     );
     return;
   }
