@@ -90,11 +90,40 @@ const createPrismaClient = (): PrismaClient => {
   }
 
   try {
+    // Fix for prepared statement errors in PostgreSQL
+    // This error occurs when using connection poolers (PgBouncer) or in serverless environments
+    // where prepared statements conflict across different sessions
+    let finalDatabaseUrl = databaseUrl!;
+    
+    try {
+      const connectionUrl = new URL(databaseUrl!);
+      
+      // For connection poolers (port 6543), use pgbouncer mode
+      // This tells Prisma to use transaction mode which doesn't use prepared statements
+      // This prevents "prepared statement already exists" errors
+      // PgBouncer in transaction mode doesn't support prepared statements, which is why this works
+      if (connectionUrl.port === "6543") {
+        connectionUrl.searchParams.set("pgbouncer", "true");
+      }
+      
+      // If pgbouncer is already specified, ensure it's set to true
+      if (connectionUrl.searchParams.has("pgbouncer")) {
+        connectionUrl.searchParams.set("pgbouncer", "true");
+      }
+      
+      finalDatabaseUrl = connectionUrl.toString();
+    } catch (urlError) {
+      // If URL parsing fails, use original URL
+      // This should rarely happen as we validate the URL format earlier
+      logError("Failed to parse DATABASE_URL, using original URL:", urlError);
+      finalDatabaseUrl = databaseUrl!;
+    }
+
     return new PrismaClient({
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
       datasources: {
         db: {
-          url: databaseUrl,
+          url: finalDatabaseUrl,
         },
       },
       errorFormat: "minimal", // Security: Don't expose detailed errors in production
