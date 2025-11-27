@@ -26,6 +26,7 @@ import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { logSecurityEvent, getClientIP, getUserAgent } from "@/lib/security-logger";
 
 /**
  * Request body validation schema
@@ -151,6 +152,16 @@ export async function DELETE(request: Request) {
     // - All sessions (cascade)
     await db.user.delete({
       where: { id: userId },
+    });
+
+    // Log security event
+    logSecurityEvent({
+      type: "account_deleted",
+      userId: user.id,
+      email: user.email,
+      ipAddress: getClientIP(request.headers),
+      userAgent: getUserAgent(request.headers),
+      timestamp: new Date(),
     });
 
     // Step 7: Return success

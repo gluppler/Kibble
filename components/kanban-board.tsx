@@ -7,7 +7,7 @@
  * - Task and column drag-and-drop operations
  * - Task locking/unlocking when moved to/from Done column
  * - Optimistic UI updates for real-time feedback
- * - Automatic cleanup of tasks in Done column (24-hour deletion)
+ * - Automatic archiving of tasks in Done column (24-hour archive)
  * - Task editing and deletion dialogs
  */
 
@@ -128,13 +128,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         const data = await res.json();
         setBoard(data);
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        if (process.env.NODE_ENV === "development") {
-          console.error("[BOARD FETCH] Failed to fetch board:", errorData);
-        }
+        // Error handled silently - user will see loading state
+        await res.json().catch(() => ({}));
       }
     } catch (error) {
-      console.error("[BOARD FETCH] Error fetching board:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD FETCH] Error fetching board:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -145,40 +146,46 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   }, [fetchBoard]);
 
   /**
-   * Auto-cleanup effect for tasks in Done column
+   * Auto-archive effect for tasks in Done column
    * 
-   * Runs cleanup every 5 minutes to delete tasks that have been in Done column
+   * Runs archive cleanup every 5 minutes to archive tasks that have been in Done column
    * for more than 24 hours. Also runs immediately on component mount.
    */
   useEffect(() => {
-    // Periodic cleanup interval
-    const cleanupInterval = setInterval(async () => {
+    // Periodic archive cleanup interval
+    const archiveInterval = setInterval(async () => {
       try {
         await fetch("/api/tasks/cleanup", {
           method: "POST",
         });
-        // Refetch board after cleanup to reflect changes
+        // Refetch board after archive to reflect changes
         await fetchBoard();
       } catch (error) {
-        console.error("Failed to cleanup tasks:", error);
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.error("Failed to archive tasks:", error);
+        }
       }
     }, 5 * 60 * 1000); // Every 5 minutes
 
-    // Initial cleanup on mount
-    const initialCleanup = async () => {
+    // Initial archive cleanup on mount
+    const initialArchive = async () => {
       try {
         await fetch("/api/tasks/cleanup", {
           method: "POST",
         });
         await fetchBoard();
       } catch (error) {
-        console.error("Failed to cleanup tasks:", error);
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.error("Failed to archive tasks:", error);
+        }
       }
     };
-    initialCleanup();
+    initialArchive();
 
     // Cleanup interval on unmount
-    return () => clearInterval(cleanupInterval);
+    return () => clearInterval(archiveInterval);
   }, [fetchBoard]);
 
   /**
@@ -258,18 +265,21 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     const overId = over.id as string;
 
     // Check if dragging a column (not a task)
-    const isDraggingColumn = board.columns.some(col => col.id === activeId);
+    // Optimize: Use a single pass to find both columns if needed
+    let draggedColumn: (Column & { tasks: Task[] }) | undefined;
+    let overColumn: (Column & { tasks: Task[] }) | undefined;
+    const isDraggingColumn = board.columns.some(col => {
+      if (col.id === activeId) draggedColumn = col;
+      if (col.id === overId) overColumn = col;
+      return col.id === activeId;
+    });
     
     if (isDraggingColumn) {
       // Handle column reordering
-      const draggedColumn = board.columns.find(col => col.id === activeId);
       if (!draggedColumn) {
         await fetchBoard();
         return;
       }
-
-      // Find the new position based on where it was dropped
-      const overColumn = board.columns.find(col => col.id === overId);
       if (!overColumn || draggedColumn.id === overColumn.id) {
         // No change or dropped on itself
         await fetchBoard();
@@ -323,7 +333,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         // Refetch to get updated order
         await fetchBoard();
       } catch (error) {
-        console.error("[COLUMN DRAG END] Failed to update column order:", error);
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.error("[COLUMN DRAG END] Failed to update column order:", error);
+        }
         // Revert on error by refetching
         await fetchBoard();
       }
@@ -406,6 +419,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // Update local state immediately for real-time UI feedback
     if (board) {
       // Find target column to determine if task should be locked
+      // Optimize: Cache column lookup
       const targetColumn = board.columns.find(col => col.id === newColumnId);
       const isMovingToDone = targetColumn?.title === "Done";
       const wasInDone = currentColumn.title === "Done";
@@ -481,7 +495,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       // No delay needed - the optimistic update already shows the change
       await fetchBoard();
     } catch (error) {
-      console.error("[DRAG END] Failed to update task:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[DRAG END] Failed to update task:", error);
+      }
       // Revert optimistic update on error by refetching
       await fetchBoard();
     }
@@ -510,6 +527,40 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   }, []);
 
   /**
+   * Handles task archive action
+   * 
+   * @param task - Task to archive
+   * 
+   * Archives the task (does not delete).
+   */
+  const handleTaskArchive = useCallback(async (task: Task) => {
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/archive`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to archive task");
+      }
+
+      // Emit archive event for real-time updates in archive page
+      if (typeof window !== "undefined") {
+        const { emitArchiveEvent } = await import("@/lib/archive-events");
+        emitArchiveEvent("tasks");
+      }
+
+      // Refetch board to reflect changes
+      await fetchBoard();
+    } catch (error) {
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[TASK ARCHIVE] Error archiving task:", error);
+      }
+    }
+  }, [fetchBoard]);
+
+  /**
    * Handles confirmed task deletion
    * 
    * Deletes the task from the database and refetches the board.
@@ -530,7 +581,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       setDeletingTask(null);
       await fetchBoard();
     } catch (error) {
-      console.error("Failed to delete task:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("Failed to delete task:", error);
+      }
       alert(error instanceof Error ? error.message : "Failed to delete task");
     }
   }, [deletingTask, fetchBoard]);
@@ -597,7 +651,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive w-full">
-        <div className="text-black dark:text-white font-bold">Loading board...</div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base">Loading board...</p>
+        </motion.div>
       </div>
     );
   }
@@ -605,7 +666,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   if (!board) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive w-full">
-        <div className="text-black dark:text-white font-bold">Board not found</div>
+        <div className="text-center">
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">Board not found</p>
+          <p className="text-xs text-black/60 dark:text-white/60 font-bold">The board may have been deleted or you don't have access to it.</p>
+        </div>
       </div>
     );
   }
@@ -668,6 +732,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                       onTaskAdded={fetchBoard}
                       onTaskEdit={handleTaskEdit}
                       onTaskDelete={handleTaskDelete}
+                      onTaskArchive={handleTaskArchive}
                     />
                   </motion.div>
                 ))}

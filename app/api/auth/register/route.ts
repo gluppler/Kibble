@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { validatePassword } from "@/lib/password-utils";
 
 const registerSchema = z.object({
   name: z.string().optional(),
@@ -60,6 +61,15 @@ export async function POST(request: Request) {
       // Fail securely - generic error (don't reveal if email exists)
       return NextResponse.json(
         { error: "Registration failed" },
+        { status: 400 }
+      );
+    }
+
+    // Validate password (strength and uniqueness)
+    const passwordValidation = await validatePassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.error || "Invalid password" },
         { status: 400 }
       );
     }

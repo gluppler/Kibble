@@ -6,16 +6,16 @@
  * - Due date status indicators (overdue, due soon, upcoming)
  * - Task editing and deletion
  * - Visual feedback for locked tasks (Done column)
- * - Auto-deletion countdown for tasks in Done column
+ * - Auto-archive countdown for tasks in Done column
  */
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
-import { Calendar, AlertCircle, Edit2, Trash2, MoreVertical, Lock, Clock } from "lucide-react";
+import { Calendar, AlertCircle, Edit2, Trash2, MoreVertical, Lock, Clock, Archive } from "lucide-react";
 import type { Task } from "@/lib/types";
 
 /**
@@ -26,6 +26,7 @@ interface KanbanTaskProps {
   columnTitle?: string;
   onEdit?: (task: Task) => void;
   onDelete?: (task: Task) => void;
+  onArchive?: (task: Task) => void;
 }
 
 /**
@@ -92,14 +93,14 @@ function formatDateToDDMMYYYY(date: Date): string {
  * - Drag and drop (disabled for locked tasks)
  * - Visual status indicators (overdue, due soon)
  * - Locked task handling (Done column)
- * - Auto-deletion countdown timer
+ * - Auto-archive countdown timer
  * - Edit and delete actions
  */
-export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskProps) {
+export function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: KanbanTaskProps) {
   // State for menu visibility
   const [showMenu, setShowMenu] = useState(false);
-  // State for auto-deletion countdown
-  const [timeUntilDeletion, setTimeUntilDeletion] = useState<string | null>(null);
+  // State for auto-archive countdown
+  const [timeUntilArchive, setTimeUntilArchive] = useState<string | null>(null);
   
   // Drag and drop configuration
   const {
@@ -133,15 +134,15 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
     : null;
 
   /**
-   * Calculate and update time until auto-deletion for locked tasks
+   * Calculate and update time until auto-archive for locked tasks
    * 
-   * Tasks in Done column are automatically deleted after 24 hours.
+   * Tasks in Done column are automatically archived after 24 hours.
    * This effect updates the countdown display every minute.
    */
   useEffect(() => {
-    // Only run for locked tasks with a movedToDoneAt timestamp
-    if (!task.locked || !task.movedToDoneAt) {
-      setTimeUntilDeletion(null);
+    // Only run for locked tasks with a movedToDoneAt timestamp that aren't already archived
+    if (!task.locked || !task.movedToDoneAt || task.archived) {
+      setTimeUntilArchive(null);
       return;
     }
 
@@ -151,13 +152,13 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
      */
     const updateTime = () => {
       const movedAt = new Date(task.movedToDoneAt!);
-      const deletionTime = new Date(movedAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+      const archiveTime = new Date(movedAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours
       const now = new Date();
-      const diff = deletionTime.getTime() - now.getTime();
+      const diff = archiveTime.getTime() - now.getTime();
 
-      // If time has passed, show "Deleting soon..."
+      // If time has passed, show "Archiving soon..."
       if (diff <= 0) {
-        setTimeUntilDeletion("Deleting soon...");
+        setTimeUntilArchive("Archiving soon...");
         return;
       }
 
@@ -167,9 +168,9 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
 
       // Format display string
       if (hours > 0) {
-        setTimeUntilDeletion(`${hours}h ${minutes}m`);
+        setTimeUntilArchive(`${hours}h ${minutes}m`);
       } else {
-        setTimeUntilDeletion(`${minutes}m`);
+        setTimeUntilArchive(`${minutes}m`);
       }
     };
 
@@ -180,7 +181,7 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
 
     // Cleanup interval on unmount
     return () => clearInterval(interval);
-  }, [task.locked, task.movedToDoneAt]);
+  }, [task.locked, task.movedToDoneAt, task.archived]);
 
   /**
    * Handles edit button click
@@ -216,6 +217,20 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
     e.preventDefault();
     setShowMenu(false);
     onDelete?.(task);
+  };
+
+  /**
+   * Handles archive button click
+   * 
+   * @param e - Mouse event
+   * 
+   * Closes menu and calls onArchive callback
+   */
+  const handleArchive = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowMenu(false);
+    onArchive?.(task);
   };
 
   return (
@@ -320,6 +335,16 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
                       Edit (Locked)
                     </div>
                   )}
+                  {onArchive && (
+                    <button
+                      onClick={handleArchive}
+                      className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
+                      type="button"
+                    >
+                      <Archive size={12} />
+                      Archive
+                    </button>
+                  )}
                   {onDelete && (
                     <button
                       onClick={handleDelete}
@@ -347,10 +372,10 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete }: KanbanTaskPr
           <span>{formatDateToDDMMYYYY(dueDate)}</span>
         </div>
       )}
-      {isLocked && timeUntilDeletion && (
+      {isLocked && timeUntilArchive && (
         <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
           <Clock size={14} className="text-black dark:text-white flex-shrink-0" />
-          <span>Auto-delete in: {timeUntilDeletion}</span>
+          <span>Auto-archive in: {timeUntilArchive}</span>
         </div>
       )}
     </motion.div>

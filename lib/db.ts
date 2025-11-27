@@ -25,6 +25,8 @@ const globalForPrisma = globalThis as unknown as {
  * Connection:
  * - Uses DATABASE_URL for all database operations (application queries and migrations)
  * - Format: postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:5432/postgres
+ * - IMPORTANT: Use DIRECT connection (port 5432) NOT pooler (port 6543)
+ * - Pooler connections cause migration issues and prepared statement errors
  * 
  * Logging:
  * - Development: errors and warnings

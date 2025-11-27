@@ -85,12 +85,12 @@ export function checkTaskAlert(task: Task): Alert | null {
 
   return {
     id: stableId,
-    type: 'urgent', // All alerts are urgent (RED) when within 10 days
+    type: 'urgent', // All alerts are urgent when within 10 days (visual distinction via borders/backgrounds in black/white design)
     taskId: task.id,
     taskTitle: task.title,
     daysUntil,
     dueDate,
-    color: 'red', // RED for all urgent alerts (overdue, today, 1 day, 10 days)
+    color: 'red', // Kept for internal logic - UI uses black/white visual distinction
     closed: false,
     createdAt: new Date(),
   };
@@ -106,12 +106,13 @@ export function checkTaskAlert(task: Task): Alert | null {
  */
 export function createCompletionAlert(task: Task): Alert {
   // Use stable ID based on task ID only - one completion alert per task
+  // Visual distinction via borders/backgrounds in black/white design
   return {
     id: `completion-${task.id}`,
     type: 'completion',
     taskId: task.id,
     taskTitle: task.title,
-    color: 'green',
+    color: 'green', // Kept for internal logic - UI uses black/white visual distinction
     closed: false,
     createdAt: new Date(),
   };
@@ -133,13 +134,19 @@ export function createCompletionAlert(task: Task): Alert {
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   // Check if running in secure context (required for notifications)
   if (typeof window === 'undefined' || !window.isSecureContext) {
-    console.warn('Notifications require a secure context (HTTPS or localhost)');
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.warn('Notifications require a secure context (HTTPS or localhost)');
+    }
     return 'denied';
   }
 
   // Check if Notification API is available
   if (!('Notification' in window)) {
-    console.warn('Browser does not support notifications');
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.warn('Browser does not support notifications');
+    }
     return 'denied';
   }
 
@@ -160,13 +167,19 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     
     // Validate permission value (security check)
     if (permission !== 'granted' && permission !== 'denied' && permission !== 'default') {
-      console.warn('Invalid notification permission value:', permission);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.warn('Invalid notification permission value:', permission);
+      }
       return 'denied';
     }
     
     return permission;
   } catch (error) {
-    console.error('Error requesting notification permission:', error);
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.error('Error requesting notification permission:', error);
+    }
     return 'denied';
   }
 }
@@ -224,19 +237,28 @@ export function showBrowserNotification(
 ): Notification | null {
   // Security check: Must be in secure context
   if (typeof window === 'undefined' || !window.isSecureContext) {
-    console.warn('Notifications require a secure context (HTTPS or localhost)');
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.warn('Notifications require a secure context (HTTPS or localhost)');
+    }
     return null;
   }
 
   // Check if Notification API is available
   if (!('Notification' in window)) {
-    console.warn('Browser does not support notifications');
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.warn('Browser does not support notifications');
+    }
     return null;
   }
 
   // Check permission
   if (Notification.permission !== 'granted') {
-    console.warn('Notification permission not granted');
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.warn('Notification permission not granted');
+    }
     return null;
   }
 
@@ -270,6 +292,42 @@ export function showBrowserNotification(
     // Track that we've sent this notification
     sentNotificationTags.add(notificationTag);
 
+    // Add click handler to prevent duplicate tab opening
+    // CRITICAL: Always just focus the existing window - never navigate
+    // This prevents the browser from opening a new tab when:
+    // - User is signed out
+    // - User is on auth pages
+    // - Window that created notification no longer exists
+    // The browser's default behavior when clicking a notification is to focus the window
+    // that created it, or open a new tab if that window doesn't exist. By explicitly
+    // focusing, we prevent new tab creation.
+    notification.onclick = () => {
+      // Check if we're in a browser context
+      if (typeof window === 'undefined') return;
+      
+      try {
+        // Always just focus the existing window - never navigate
+        // This is the safest approach to prevent duplicate tabs
+        // The user can manually navigate if they want to see the alerts
+        window.focus();
+        
+        // Optional: Close the notification after focusing
+        // This provides better UX - user knows the click was registered
+        try {
+          notification.close();
+        } catch (closeError) {
+          // Ignore errors when closing (notification may already be closed)
+        }
+      } catch (error) {
+        // If any error occurs, silently fail
+        // This prevents crashes and doesn't disrupt user experience
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.warn('Could not handle notification click:', error);
+        }
+      }
+    };
+
     // Auto-close after 5 seconds for non-urgent notifications
     // This prevents notification spam
     if (!options.requireInteraction) {
@@ -284,7 +342,10 @@ export function showBrowserNotification(
 
     return notification;
   } catch (error) {
-    console.error('Error showing notification:', error);
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.error('Error showing notification:', error);
+    }
     return null;
   }
 }

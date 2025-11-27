@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -36,7 +37,7 @@ export async function GET() {
 
     return NextResponse.json({ board });
   } catch (error) {
-    console.error("Error fetching user board:", error);
+    logError("Error fetching user board:", error);
     return NextResponse.json(
       { error: "Failed to fetch board" },
       { status: 500 }

@@ -44,7 +44,7 @@ export function DeleteConfirmationDialog({
             <div className="bg-white dark:bg-black rounded-lg shadow-2xl w-full max-w-md mx-3 sm:mx-4 p-4 sm:p-6 border border-black/10 dark:border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-black dark:bg-white flex items-center justify-center">
                     <AlertTriangle className="text-white dark:text-black" size={16} />
                   </div>
                   <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-black dark:text-white">
@@ -54,7 +54,7 @@ export function DeleteConfirmationDialog({
                 <button
                   onClick={onClose}
                   disabled={loading}
-                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-opacity"
+                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all"
                   aria-label="Close"
                   type="button"
                 >
@@ -84,7 +84,8 @@ export function DeleteConfirmationDialog({
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 text-xs sm:text-sm font-bold"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    aria-label="Cancel deletion"
                 >
                   Cancel
                 </button>

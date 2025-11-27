@@ -15,6 +15,7 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
+  Archive,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/contexts/theme-context";
@@ -33,6 +34,7 @@ interface SidebarProps {
   onNewBoard: () => void;
   onBoardEdit?: (board: Board) => void;
   onBoardDelete?: (board: Board) => void;
+  onBoardArchive?: (board: Board) => void;
 }
 
 export function Sidebar({
@@ -42,6 +44,7 @@ export function Sidebar({
   onNewBoard,
   onBoardEdit,
   onBoardDelete,
+  onBoardArchive,
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -72,7 +75,7 @@ export function Sidebar({
         >
           <div className="flex items-center gap-2">
             <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              className={`w-2 h-2 rounded flex-shrink-0 ${
                 currentBoardId === board.id
                   ? "bg-white dark:bg-black"
                   : "bg-black/30 dark:bg-white/30"
@@ -123,6 +126,20 @@ export function Sidebar({
               >
                 <Edit2 size={14} />
                 Edit
+              </button>
+            )}
+            {onBoardArchive && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(false);
+                  onBoardArchive(board);
+                }}
+                className="w-full text-left px-3 py-2 text-xs sm:text-sm text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-2 font-bold"
+                type="button"
+              >
+                <Archive size={14} />
+                Archive
               </button>
             )}
             {onBoardDelete && (
@@ -182,7 +199,7 @@ export function Sidebar({
 
           {/* User info */}
           <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
               <User className="text-white dark:text-black" size={14} />
             </div>
             <div className="flex-1 min-w-0">
@@ -216,14 +233,34 @@ export function Sidebar({
           </div>
 
           <div className="space-y-1">
-            {boards.map((board) => (
-              <BoardItem key={board.id} board={board} />
-            ))}
+            {boards.length === 0 ? (
+              <div className="text-center py-6 px-2">
+                <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">No boards yet</p>
+                <button
+                  onClick={onNewBoard}
+                  className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold"
+                  type="button"
+                >
+                  Create your first board
+                </button>
+              </div>
+            ) : (
+              boards.map((board) => (
+                <BoardItem key={board.id} board={board} />
+              ))
+            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="p-3 sm:p-4 border-t border-black/10 dark:border-white/10 space-y-2">
+          <Link
+            href="/archive"
+            className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
+          >
+            <Archive size={14} />
+            <span className="text-xs sm:text-sm">Archive</span>
+          </Link>
           <Link
             href="/settings"
             className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
@@ -295,7 +332,7 @@ export function Sidebar({
 
                 {/* User info */}
                 <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-black dark:bg-white flex items-center justify-center flex-shrink-0">
                     <User className="text-white dark:text-black" size={14} />
                   </div>
                   <div className="flex-1 min-w-0">

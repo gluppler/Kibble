@@ -1,3 +1,13 @@
+/**
+ * Next.js Configuration
+ * 
+ * Optimized for production deployment on Vercel.
+ * Uses Turbopack (default in Next.js 16) for faster builds.
+ * 
+ * Note: Webpack configuration removed - Turbopack handles Node.js module
+ * fallbacks (fs, net, tls) automatically for client-side code.
+ */
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Optimize for production
@@ -14,21 +24,11 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', 'framer-motion'],
   },
   
-  // Webpack configuration
-  webpack: (config, { isServer }) => {
-    // Optimize bundle size
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
-    return config;
-  },
-  
-  // Output configuration for Vercel (removed - Vercel handles this automatically)
+  // Note: Turbopack (default in Next.js 16) automatically handles:
+  // - Node.js module fallbacks (fs, net, tls) for client-side code
+  // - Bundle optimization
+  // - Tree shaking
+  // No custom webpack or turbopack config needed
 };
 
 module.exports = nextConfig;

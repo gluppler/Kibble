@@ -8,9 +8,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * API route to clean up tasks in "Done" column that are older than 24 hours
+ * API route to archive tasks in "Done" column that are older than 24 hours
  * This should be called periodically (e.g., via cron job or scheduled task)
  * or can be called on-demand by the client
+ * 
+ * Auto-archive: Tasks in "Done" column are automatically archived after 24 hours
+ * Archived tasks are hidden from the main board view but can be restored
  */
 export async function POST(request: Request) {
   try {
@@ -43,46 +46,51 @@ export async function POST(request: Request) {
               lte: twentyFourHoursAgo,
             },
             locked: true,
+            archived: false, // Only archive tasks that aren't already archived
           },
         },
       },
     });
 
-    // Collect all task IDs to delete
-    const taskIdsToDelete: string[] = [];
+    // Collect all task IDs to archive
+    const taskIdsToArchive: string[] = [];
     doneColumns.forEach((column) => {
       column.tasks.forEach((task) => {
-        taskIdsToDelete.push(task.id);
+        taskIdsToArchive.push(task.id);
       });
     });
 
-    // Delete tasks in batch
-    if (taskIdsToDelete.length > 0) {
-      await db.task.deleteMany({
+    // Archive tasks in batch
+    if (taskIdsToArchive.length > 0) {
+      await db.task.updateMany({
         where: {
           id: {
-            in: taskIdsToDelete,
+            in: taskIdsToArchive,
           },
+        },
+        data: {
+          archived: true,
+          archivedAt: new Date(),
         },
       });
     }
 
     return NextResponse.json({
       success: true,
-      deletedCount: taskIdsToDelete.length,
-      message: `Deleted ${taskIdsToDelete.length} task(s) that were in Done column for more than 24 hours`,
+      archivedCount: taskIdsToArchive.length,
+      message: `Archived ${taskIdsToArchive.length} task(s) that were in Done column for more than 24 hours`,
     });
   } catch (error) {
-    console.error("Error cleaning up tasks:", error);
+    console.error("Error archiving tasks:", error);
     return NextResponse.json(
-      { error: "Failed to cleanup tasks" },
+      { error: "Failed to archive tasks" },
       { status: 500 }
     );
   }
 }
 
 /**
- * GET endpoint to check for tasks that will be deleted soon
+ * GET endpoint to check for tasks that will be archived soon
  * Returns tasks that are approaching the 24-hour mark
  */
 export async function GET(request: Request) {
@@ -96,7 +104,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Find all tasks in "Done" columns that are locked
+    // Find all tasks in "Done" columns that are locked and not archived
     const doneColumns = await db.column.findMany({
       where: {
         title: "Done",
@@ -108,6 +116,7 @@ export async function GET(request: Request) {
         tasks: {
           where: {
             locked: true,
+            archived: false, // Only show non-archived tasks
             movedToDoneAt: {
               not: null,
             },
@@ -119,36 +128,36 @@ export async function GET(request: Request) {
       },
     });
 
-    // Calculate time until deletion for each task
-    const tasksWithDeletionInfo = doneColumns.flatMap((column) =>
+    // Calculate time until archive for each task
+    const tasksWithArchiveInfo = doneColumns.flatMap((column) =>
       column.tasks.map((task) => {
         if (!task.movedToDoneAt) return null;
         
         const movedAt = new Date(task.movedToDoneAt);
-        const deletionTime = new Date(movedAt.getTime() + 24 * 60 * 60 * 1000);
+        const archiveTime = new Date(movedAt.getTime() + 24 * 60 * 60 * 1000);
         const now = new Date();
-        const timeUntilDeletion = deletionTime.getTime() - now.getTime();
-        const hoursUntilDeletion = Math.max(0, timeUntilDeletion / (1000 * 60 * 60));
+        const timeUntilArchive = archiveTime.getTime() - now.getTime();
+        const hoursUntilArchive = Math.max(0, timeUntilArchive / (1000 * 60 * 60));
 
         return {
           id: task.id,
           title: task.title,
           movedToDoneAt: task.movedToDoneAt,
-          deletionTime: deletionTime.toISOString(),
-          hoursUntilDeletion: Math.round(hoursUntilDeletion * 10) / 10,
-          willBeDeletedSoon: hoursUntilDeletion <= 1, // Within 1 hour
+          archiveTime: archiveTime.toISOString(),
+          hoursUntilArchive: Math.round(hoursUntilArchive * 10) / 10,
+          willBeArchivedSoon: hoursUntilArchive <= 1, // Within 1 hour
         };
       }).filter(Boolean)
     );
 
     return NextResponse.json({
-      tasks: tasksWithDeletionInfo,
-      count: tasksWithDeletionInfo.length,
+      tasks: tasksWithArchiveInfo,
+      count: tasksWithArchiveInfo.length,
     });
   } catch (error) {
-    console.error("Error fetching cleanup info:", error);
+    console.error("Error fetching archive info:", error);
     return NextResponse.json(
-      { error: "Failed to fetch cleanup info" },
+      { error: "Failed to fetch archive info" },
       { status: 500 }
     );
   }

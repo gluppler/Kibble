@@ -66,8 +66,9 @@ export function CreateBoardDialog({
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                  className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all"
                   type="button"
+                  aria-label="Close dialog"
                 >
                   <X className="text-black dark:text-white" size={18} />
                 </button>
@@ -104,14 +105,16 @@ export function CreateBoardDialog({
                     type="button"
                     onClick={onClose}
                     disabled={loading}
-                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-opacity disabled:opacity-50 text-xs sm:text-sm font-bold"
+                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    aria-label="Cancel board creation"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading || !title.trim()}
-                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-black dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-black dark:bg-white text-white dark:text-black hover:opacity-80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    aria-label={loading ? "Creating board..." : "Create board"}
                   >
                     {loading ? "Creating..." : "Create Board"}
                   </button>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkBoardPermission } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -31,6 +32,9 @@ export async function GET(
         columns: {
           include: {
             tasks: {
+              where: {
+                archived: false, // Exclude archived tasks from main board view
+              },
               orderBy: { order: "asc" },
             },
           },
@@ -45,7 +49,7 @@ export async function GET(
 
     return NextResponse.json(board);
   } catch (error) {
-    console.error("Error fetching board:", error);
+    logError("Error fetching board:", error);
     return NextResponse.json(
       { error: "Failed to fetch board" },
       { status: 500 }
@@ -86,6 +90,9 @@ export async function PATCH(
         columns: {
           include: {
             tasks: {
+              where: {
+                archived: false, // Exclude archived tasks from main board view
+              },
               orderBy: { order: "asc" },
             },
           },
@@ -96,7 +103,7 @@ export async function PATCH(
 
     return NextResponse.json(board);
   } catch (error) {
-    console.error("Error updating board:", error);
+    logError("Error updating board:", error);
     return NextResponse.json(
       { error: "Failed to update board" },
       { status: 500 }
@@ -128,7 +135,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting board:", error);
+    logError("Error deleting board:", error);
     return NextResponse.json(
       { error: "Failed to delete board" },
       { status: 500 }

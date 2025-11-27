@@ -1,12 +1,37 @@
+/**
+ * Prisma Schema for Kibble
+ * 
+ * Database schema for a Kanban board application with:
+ * - User authentication and MFA support
+ * - Class-based task categories (Boards)
+ * - Kanban columns and tasks
+ * - Password reset functionality
+ * - Session management
+ * 
+ * All relationships use cascade deletes for automatic cleanup.
+ * Indexes are optimized for common query patterns.
+ */
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // Optional: for shadow database (can be same as DATABASE_URL for Supabase)
 }
 
+/**
+ * Account Model
+ * 
+ * Stores OAuth account information (for future OAuth provider support).
+ * Currently used by NextAuth.js for session management.
+ * 
+ * Indexes:
+ * - userId: For user account lookups
+ * - provider + providerAccountId: Unique constraint for OAuth accounts
+ */
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -26,6 +51,16 @@ model Account {
   @@index([userId])
 }
 
+/**
+ * Session Model
+ * 
+ * Stores user session tokens for NextAuth.js.
+ * Sessions are automatically deleted when user is deleted (cascade).
+ * 
+ * Indexes:
+ * - userId: For user session lookups
+ * - sessionToken: Unique constraint for session validation
+ */
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -36,6 +71,27 @@ model Session {
   @@index([userId])
 }
 
+/**
+ * User Model
+ * 
+ * Core user account model with authentication and MFA support.
+ * 
+ * Fields:
+ * - email: Unique identifier (required)
+ * - password: Hashed password (bcrypt, required for credentials auth)
+ * - mfaEnabled: MFA status flag
+ * - mfaSecret: TOTP secret (server-side only, should be encrypted in production)
+ * - mfaBackupCodes: Hashed backup recovery codes (comma-separated)
+ * 
+ * Relations:
+ * - boards: User's kanban boards (cascade delete)
+ * - accounts: OAuth accounts (cascade delete)
+ * - sessions: Active sessions (cascade delete)
+ * - passwordResetTokens: Password reset tokens (cascade delete)
+ * 
+ * Indexes:
+ * - email: Unique constraint for authentication
+ */
 model User {
   id                  String               @id @default(cuid())
   name                String?
@@ -54,6 +110,15 @@ model User {
   passwordResetTokens PasswordResetToken[]
 }
 
+/**
+ * VerificationToken Model
+ * 
+ * Stores email verification tokens (used by NextAuth.js).
+ * 
+ * Indexes:
+ * - token: Unique constraint for token validation
+ * - identifier + token: Composite unique constraint
+ */
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -62,6 +127,32 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/**
+ * PasswordResetToken Model
+ * 
+ * Stores password reset tokens with expiration and usage tracking.
+ * 
+ * Security:
+ * - Tokens expire after 15 minutes
+ * - Tokens are single-use (used flag)
+ * - Automatically deleted when user is deleted (cascade)
+ * - Row Level Security (RLS) enabled in Supabase
+ * - Users can only access their own reset tokens
+ * 
+ * RLS Policies (Supabase):
+ * - Users can only SELECT their own tokens
+ * - Users can only INSERT tokens for themselves
+ * - Users can only UPDATE their own tokens
+ * - Users can only DELETE their own tokens
+ * 
+ * Note: If using NextAuth.js (not Supabase Auth), application-level
+ * permissions in lib/permissions.ts handle access control.
+ * 
+ * Indexes:
+ * - token: For token lookup during reset
+ * - userId: For user token lookups
+ * - expires: For cleanup of expired tokens
+ */
 model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
@@ -76,18 +167,53 @@ model PasswordResetToken {
   @@index([expires])
 }
 
+/**
+ * Board Model
+ * 
+ * Represents a kanban board (Class/Subject category).
+ * Each board belongs to a user and contains columns.
+ * 
+ * Features:
+ * - Archive: Boards can be archived (not deleted) for history tracking
+ * 
+ * Relations:
+ * - user: Board owner (cascade delete)
+ * - columns: Board columns (cascade delete)
+ * 
+ * Indexes:
+ * - userId: For user board lookups (optimized for /api/boards/list)
+ * - archived: For archived board queries (optimized for filtering archived boards)
+ * - archivedAt: For archive timestamp queries
+ */
 model Board {
-  id        String   @id @default(cuid())
-  title     String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  columns   Column[]
+  id         String   @id @default(cuid())
+  title      String
+  userId     String
+  archived   Boolean  @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  columns    Column[]
 
   @@index([userId])
+  @@index([archived])
+  @@index([archivedAt])
 }
 
+/**
+ * Column Model
+ * 
+ * Represents a kanban column (e.g., "To-Do", "In-Progress", "Review", "Done").
+ * Each column belongs to a board and contains tasks.
+ * 
+ * Relations:
+ * - board: Parent board (cascade delete)
+ * - tasks: Column tasks (cascade delete)
+ * 
+ * Indexes:
+ * - boardId: For board column lookups (optimized for board fetching)
+ */
 model Column {
   id        String   @id @default(cuid())
   title     String
@@ -101,6 +227,26 @@ model Column {
   @@index([boardId])
 }
 
+/**
+ * Task Model
+ * 
+ * Represents a task/note within a kanban column.
+ * 
+ * Features:
+ * - Task locking: Tasks in "Done" column are locked (cannot be edited)
+ * - Auto-archive: Tasks in "Done" column are auto-archived after 24 hours
+ * - Due date alerts: Tasks with due dates trigger alerts when approaching deadline
+ * 
+ * Relations:
+ * - column: Parent column (cascade delete)
+ * 
+ * Indexes:
+ * - columnId: For column task lookups (optimized for column fetching)
+ * - dueDate: For due date alert queries (optimized for alert system)
+ * - movedToDoneAt: For auto-archive cleanup queries (optimized for cleanup API)
+ * - locked: For locked task queries (optimized for task filtering)
+ * - archived: For archived task queries (optimized for filtering archived tasks)
+ */
 model Task {
   id            String    @id @default(cuid())
   title         String
@@ -109,7 +255,9 @@ model Task {
   order         Int       @default(0)
   columnId      String
   locked        Boolean   @default(false)
+  archived      Boolean   @default(false)
   movedToDoneAt DateTime?
+  archivedAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   column        Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
@@ -118,4 +266,6 @@ model Task {
   @@index([dueDate])
   @@index([movedToDoneAt])
   @@index([locked])
+  @@index([archived])
+  @@index([archivedAt])
 }

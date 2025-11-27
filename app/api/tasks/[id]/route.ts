@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkTaskPermission, checkColumnBoardMatch } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -77,7 +78,9 @@ export async function PATCH(
       order?: number;
       dueDate?: Date | null;
       locked?: boolean;
+      archived?: boolean;
       movedToDoneAt?: Date | null;
+      archivedAt?: Date | null;
     } = {};
     
     if (title !== undefined && !existingTask.locked) updateData.title = title;
@@ -107,7 +110,7 @@ export async function PATCH(
         });
         
         if (!newColumn) {
-          console.error(`[TASK UPDATE] Target column ${columnId} not found`);
+          logError(`[TASK UPDATE] Target column ${columnId} not found`);
           return NextResponse.json(
             { error: "Target column not found" },
             { status: 404 }
@@ -130,14 +133,20 @@ export async function PATCH(
           // Unlock if moving away from Done
           updateData.locked = false;
           updateData.movedToDoneAt = null;
+          // If task was archived, unarchive it when moving away from Done
+          if (existingTask.archived) {
+            updateData.archived = false;
+            updateData.archivedAt = null;
+          }
           // Task moved away from Done column - unlocking task
         }
         
-        // Get all tasks in the new column (excluding the one being moved)
+        // Get all tasks in the new column (excluding the one being moved and archived tasks)
         const newColumnTasks = await db.task.findMany({
           where: { 
             columnId: finalColumnId,
             id: { not: existingTask.id },
+            archived: false, // Exclude archived tasks from order calculations
           },
           orderBy: { order: "asc" },
         });
@@ -190,6 +199,7 @@ export async function PATCH(
           where: { 
             columnId: existingTask.columnId,
             id: { not: existingTask.id },
+            archived: false, // Exclude archived tasks from order calculations
           },
           orderBy: { order: "asc" },
         });
@@ -229,7 +239,7 @@ export async function PATCH(
 
     // CRITICAL: Verify updateData contains columnId if we're moving columns
     if (isMovingColumn && !updateData.columnId) {
-      console.error(`[TASK UPDATE] ERROR: Moving column but columnId not set in updateData!`, {
+      logError(`[TASK UPDATE] ERROR: Moving column but columnId not set in updateData!`, {
         taskId: id,
         isMovingColumn,
         updateData,
@@ -270,7 +280,7 @@ export async function PATCH(
       // Double-check the update persisted
       if (isMovingColumn && verifyTask) {
         if (verifyTask.columnId !== finalColumnId) {
-          console.error(`[TASK UPDATE] CRITICAL ERROR: Update did not persist! Expected columnId ${finalColumnId}, got ${verifyTask.columnId}`);
+          logError(`[TASK UPDATE] CRITICAL ERROR: Update did not persist! Expected columnId ${finalColumnId}, got ${verifyTask.columnId}`);
           return NextResponse.json(
             { error: "Update did not persist correctly" },
             { status: 500 }
@@ -279,13 +289,13 @@ export async function PATCH(
         // Verification passed: columnId correctly updated
       }
     } catch (updateError) {
-      console.error(`[TASK UPDATE] Database update failed:`, updateError);
+      logError(`[TASK UPDATE] Database update failed:`, updateError);
       throw updateError;
     }
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error("Error updating task:", error);
+    logError("Error updating task:", error);
     return NextResponse.json(
       { error: "Failed to update task" },
       { status: 500 }
@@ -316,7 +326,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting task:", error);
+    logError("Error deleting task:", error);
     return NextResponse.json(
       { error: "Failed to delete task" },
       { status: 500 }

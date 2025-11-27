@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication, checkColumnOwnership } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -88,13 +89,17 @@ export async function POST(request: Request) {
       columnId: string;
       order: number;
       locked: boolean;
+      archived: boolean;
       movedToDoneAt: null;
+      archivedAt: null;
     } = {
       title: title.trim(),
       columnId,
       order: finalOrder,
       locked: false,
+      archived: false,
       movedToDoneAt: null,
+      archivedAt: null,
     };
 
     // Handle description - convert empty string or undefined to null
@@ -134,7 +139,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
-    console.error("Error creating task:", error);
+    logError("Error creating task:", error);
     return NextResponse.json(
       { error: "Failed to create task" },
       { status: 500 }

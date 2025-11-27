@@ -7,10 +7,11 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, Lock, Clock } from "lucide-react";
 import type { Task, Column } from "@/lib/types";
+import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
 
 /**
  * Board interface - represents a complete kanban board with columns and tasks
@@ -31,46 +32,12 @@ interface BoardGridViewProps {
 }
 
 /**
- * Formats a date to dd/mm/yyyy format
- */
-function formatDateToDDMMYYYY(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-}
-
-/**
- * Calculates due date status
- */
-function getDueDateStatus(dueDate: Date | null | undefined): {
-  status: "overdue" | "due-soon" | "upcoming" | null;
-  daysUntil: number | null;
-} {
-  if (!dueDate) return { status: null, daysUntil: null };
-
-  const now = new Date();
-  const due = new Date(dueDate);
-  const diffTime = due.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return { status: "overdue", daysUntil: Math.abs(diffDays) };
-  } else if (diffDays === 0) {
-    return { status: "due-soon", daysUntil: 0 };
-  } else if (diffDays <= 3) {
-    return { status: "due-soon", daysUntil: diffDays };
-  } else {
-    return { status: "upcoming", daysUntil: diffDays };
-  }
-}
-
-/**
  * BoardGridView Component
  * 
  * Renders board tasks in a responsive grid layout.
+ * Memoized to prevent unnecessary re-renders.
  */
-export function BoardGridView({ board, onTaskEdit, onTaskDelete }: BoardGridViewProps) {
+export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, onTaskDelete }: BoardGridViewProps) {
   // Flatten all tasks with their column information
   const allTasks = useMemo(() => {
     const tasks: Array<Task & { column: Column }> = [];
@@ -86,7 +53,8 @@ export function BoardGridView({ board, onTaskEdit, onTaskDelete }: BoardGridView
     <div className="w-full">
       {allTasks.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-sm text-black/60 dark:text-white/60 font-bold">No tasks found</p>
+          <p className="text-sm text-black/60 dark:text-white/60 font-bold mb-2">No tasks found</p>
+          <p className="text-xs text-black/40 dark:text-white/40 font-bold">Create your first task in the To-Do column</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -192,4 +160,4 @@ export function BoardGridView({ board, onTaskEdit, onTaskDelete }: BoardGridView
       )}
     </div>
   );
-}
+});

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -21,10 +22,11 @@ export async function GET() {
       );
     }
 
-    // Get all user's boards
+    // Get all user's non-archived boards
     const boards = await db.board.findMany({
       where: {
         userId: session.user.id,
+        archived: false, // Exclude archived boards from main list
       },
       select: {
         id: true,
@@ -37,7 +39,7 @@ export async function GET() {
 
     return NextResponse.json({ boards });
   } catch (error) {
-    console.error("Error fetching boards:", error);
+    logError("Error fetching boards:", error);
     return NextResponse.json(
       { error: "Failed to fetch boards" },
       { status: 500 }

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
+import Link from "next/link";
+import { LayoutDashboard, Shield } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -14,6 +15,8 @@ export default function SignInPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +25,65 @@ export default function SignInPage() {
 
     try {
       if (isLogin) {
-        // Login
+        // Check if MFA code is required
+        if (mfaRequired && mfaCode) {
+          // Verify MFA code
+          const mfaResponse = await fetch("/api/auth/mfa/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, code: mfaCode }),
+          });
+
+          const mfaData = await mfaResponse.json();
+
+          if (!mfaResponse.ok) {
+            setError(mfaData.error || "Invalid MFA code");
+            setLoading(false);
+            setMfaCode("");
+            return;
+          }
+
+          // MFA verified, now complete login
+          const result = await signIn("credentials", {
+            email,
+            password,
+            redirect: false,
+          });
+
+          if (result?.error) {
+            setError("Login failed after MFA verification");
+            setLoading(false);
+            setMfaRequired(false);
+            setMfaCode("");
+            return;
+          }
+
+          // Login successful, proceed to dashboard
+          router.push("/");
+          router.refresh();
+          return;
+        }
+
+        // First, check if user has MFA enabled by attempting login
+        // We'll use a custom approach: try to get user info first
+        const checkMfaResponse = await fetch("/api/auth/check-mfa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (checkMfaResponse.ok) {
+          const checkData = await checkMfaResponse.json();
+          
+          if (checkData.mfaEnabled) {
+            // MFA is enabled, prompt for code
+            setMfaRequired(true);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // No MFA or MFA check failed, proceed with normal login
         const result = await signIn("credentials", {
           email,
           password,
@@ -164,28 +225,70 @@ export default function SignInPage() {
               />
             </div>
             <div>
-              <label
-                htmlFor="password"
-                className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="password"
+                  className="block text-xs sm:text-sm font-bold text-black dark:text-white"
+                >
+                  Password
+                </label>
+                {isLogin && (
+                  <Link
+                    href="/auth/password/reset"
+                    className="text-xs text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white font-bold transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </div>
               <input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete={isLogin ? "current-password" : "new-password"}
-                required
+                required={!mfaRequired}
+                disabled={mfaRequired}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold"
+                className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder={isLogin ? "Password" : "Password (min 8 characters)"}
                 minLength={isLogin ? undefined : 8}
               />
             </div>
+            {mfaRequired && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="text-black dark:text-white" size={16} />
+                  <label
+                    htmlFor="mfaCode"
+                    className="block text-xs sm:text-sm font-bold text-black dark:text-white"
+                  >
+                    Two-Factor Authentication Code
+                  </label>
+                </div>
+                <input
+                  id="mfaCode"
+                  name="mfaCode"
+                  type="text"
+                  required
+                  value={mfaCode}
+                  onChange={(e) => {
+                    setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setError("");
+                  }}
+                  className="w-full px-3 py-2.5 border border-black/20 dark:border-white/20 rounded-lg placeholder-black/40 dark:placeholder-white/40 text-black dark:text-white bg-white dark:bg-black focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-sm font-bold text-center tracking-widest"
+                  placeholder="000000"
+                  maxLength={6}
+                  autoFocus
+                />
+                <p className="mt-1.5 text-xs text-black/60 dark:text-white/60 font-bold">
+                  Enter the 6-digit code from your authenticator app
+                </p>
+              </div>
+            )}
           </div>
 
-          <div>
+          <div className="space-y-2">
             <motion.button
               type="submit"
               disabled={loading}
@@ -195,12 +298,28 @@ export default function SignInPage() {
             >
               {loading
                 ? "Please wait..."
+                : mfaRequired
+                ? "Verify Code"
                 : isLogin
                 ? "Sign in"
                 : "Create account"}
             </motion.button>
+            {mfaRequired && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMfaRequired(false);
+                  setMfaCode("");
+                  setError("");
+                }}
+                className="w-full text-xs text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white font-bold transition-colors"
+              >
+                Back to password
+              </button>
+            )}
           </div>
         </form>
+
       </motion.div>
     </div>
   );

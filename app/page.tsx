@@ -99,7 +99,10 @@ export default function Home() {
         localStorage.setItem(BOARD_ID_STORAGE_KEY, board.id);
       }
     } catch (error) {
-      console.error("[BOARD CREATE] Error creating default board:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD CREATE] Error creating default board:", error);
+      }
     }
   }, []);
 
@@ -175,7 +178,10 @@ export default function Home() {
         await createDefaultBoard();
       }
     } catch (error) {
-      console.error("[BOARD LOAD] Error loading boards:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD LOAD] Error loading boards:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -213,7 +219,10 @@ export default function Home() {
         localStorage.setItem(BOARD_ID_STORAGE_KEY, newBoard.id);
       }
     } catch (error) {
-      console.error("[BOARD CREATE] Error creating board:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD CREATE] Error creating board:", error);
+      }
       throw error;
     }
   };
@@ -254,6 +263,49 @@ export default function Home() {
   const handleBoardDelete = useCallback((board: Board) => {
     setDeletingBoard(board);
   }, []);
+
+  /**
+   * Handles board archive action
+   * 
+   * @param board - Board to archive
+   * 
+   * Archives the board (does not delete).
+   */
+  const handleBoardArchive = useCallback(async (board: Board) => {
+    try {
+      const response = await fetch(`/api/boards/${board.id}/archive`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to archive board");
+      }
+
+      // Emit archive event for real-time updates in archive page
+      if (typeof window !== "undefined") {
+        const { emitArchiveEvent } = await import("@/lib/archive-events");
+        emitArchiveEvent("boards");
+      }
+
+      // Clear localStorage if archived board was the selected one
+      if (typeof window !== "undefined") {
+        const savedBoardId = localStorage.getItem(BOARD_ID_STORAGE_KEY);
+        if (savedBoardId === board.id) {
+          localStorage.removeItem(BOARD_ID_STORAGE_KEY);
+          setBoardId(null);
+        }
+      }
+
+      // Refetch boards list
+      await loadBoards();
+    } catch (error) {
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD ARCHIVE] Error archiving board:", error);
+      }
+    }
+  }, [loadBoards]);
 
   /**
    * Handles board update completion
@@ -297,7 +349,10 @@ export default function Home() {
 
       setDeletingBoard(null);
     } catch (error) {
-      console.error("[BOARD DELETE] Error deleting board:", error);
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[BOARD DELETE] Error deleting board:", error);
+      }
       alert(error instanceof Error ? error.message : "Failed to delete board");
     }
   }, [deletingBoard, loadBoards]);
@@ -324,7 +379,17 @@ export default function Home() {
   if (!boardId) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
-        <div className="text-black dark:text-white font-bold">Failed to load board</div>
+        <div className="text-center">
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">No board selected</p>
+          <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">Select a board from the sidebar or create a new one.</p>
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
+            type="button"
+          >
+            Create Board
+          </button>
+        </div>
       </div>
     );
   }
@@ -338,6 +403,7 @@ export default function Home() {
         onNewBoard={() => setShowCreateDialog(true)}
         onBoardEdit={handleBoardEdit}
         onBoardDelete={handleBoardDelete}
+        onBoardArchive={handleBoardArchive}
       />
       
       <main className="flex-1 overflow-hidden lg:ml-64 xl:ml-72 pt-12 sm:pt-14 md:pt-16 lg:pt-0 w-full min-w-0 flex flex-col">

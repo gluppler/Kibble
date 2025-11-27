@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import type { Task } from "@/lib/types";
 import { useAlerts } from "@/contexts/alert-context";
+import { getDateInputFormatHint } from "@/lib/date-utils";
 
 interface EditTaskDialogProps {
   isOpen: boolean;
@@ -116,7 +117,7 @@ export function EditTaskDialog({
                   Task is Locked
                 </h2>
                 <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mb-4 sm:mb-6 font-bold">
-                  This task is in the "Done" column and cannot be edited. Tasks in the Done column are automatically locked and will be deleted after 24 hours.
+                  This task is in the "Done" column and cannot be edited. Tasks in the Done column are automatically locked and will be archived after 24 hours.
                 </p>
                 <div className="flex justify-end">
                   <button
@@ -161,7 +162,7 @@ export function EditTaskDialog({
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-opacity"
+                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all"
                   aria-label="Close"
                   type="button"
                 >
@@ -224,8 +225,12 @@ export function EditTaskDialog({
                     type="datetime-local"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
+                    title={`Due date - Format: ${getDateInputFormatHint()}`}
                     className="w-full px-3 py-2 sm:py-2.5 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
                   />
+                  <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
+                    Format: {getDateInputFormatHint()}
+                  </p>
                 </div>
 
                 <div className="flex gap-2 sm:gap-3 pt-2">
@@ -242,7 +247,8 @@ export function EditTaskDialog({
                     type="button"
                     onClick={onClose}
                     disabled={loading}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 text-xs sm:text-sm font-bold"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    aria-label="Cancel editing"
                   >
                     Cancel
                   </button>

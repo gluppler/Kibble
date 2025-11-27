@@ -7,10 +7,11 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, Lock } from "lucide-react";
 import type { Task, Column } from "@/lib/types";
+import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
 
 /**
  * Board interface - represents a complete kanban board with columns and tasks
@@ -31,46 +32,12 @@ interface BoardTableViewProps {
 }
 
 /**
- * Formats a date to dd/mm/yyyy format
- */
-function formatDateToDDMMYYYY(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-}
-
-/**
- * Calculates due date status
- */
-function getDueDateStatus(dueDate: Date | null | undefined): {
-  status: "overdue" | "due-soon" | "upcoming" | null;
-  daysUntil: number | null;
-} {
-  if (!dueDate) return { status: null, daysUntil: null };
-
-  const now = new Date();
-  const due = new Date(dueDate);
-  const diffTime = due.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return { status: "overdue", daysUntil: Math.abs(diffDays) };
-  } else if (diffDays === 0) {
-    return { status: "due-soon", daysUntil: 0 };
-  } else if (diffDays <= 3) {
-    return { status: "due-soon", daysUntil: diffDays };
-  } else {
-    return { status: "upcoming", daysUntil: diffDays };
-  }
-}
-
-/**
  * BoardTableView Component
  * 
  * Renders board tasks in a table format with columns as table columns.
+ * Memoized to prevent unnecessary re-renders.
  */
-export function BoardTableView({ board, onTaskEdit, onTaskDelete }: BoardTableViewProps) {
+export const BoardTableView = memo(function BoardTableView({ board, onTaskEdit, onTaskDelete }: BoardTableViewProps) {
   const sortedColumns = useMemo(() => {
     return [...board.columns].sort((a, b) => a.order - b.order);
   }, [board.columns]);
@@ -118,8 +85,11 @@ export function BoardTableView({ board, onTaskEdit, onTaskDelete }: BoardTableVi
             <tbody className="bg-white dark:bg-black divide-y divide-black/10 dark:divide-white/10">
               {allTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={sortedColumns.length + 3} className="px-4 py-8 text-center text-sm text-black/60 dark:text-white/60 font-bold">
-                    No tasks found
+                  <td colSpan={sortedColumns.length + 3} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-sm text-black/60 dark:text-white/60 font-bold">No tasks found</p>
+                      <p className="text-xs text-black/40 dark:text-white/40 font-bold">Create your first task in the To-Do column</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -163,7 +133,7 @@ export function BoardTableView({ board, onTaskEdit, onTaskDelete }: BoardTableVi
                           <td key={column.id} className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center justify-center w-full">
                             {isInColumn && (
-                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold bg-black dark:bg-white text-white dark:text-black min-w-[24px]">
+                              <span className="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-bold bg-black dark:bg-white text-white dark:text-black min-w-[24px]">
                                 ✓
                               </span>
                             )}
@@ -223,4 +193,4 @@ export function BoardTableView({ board, onTaskEdit, onTaskDelete }: BoardTableVi
       </div>
     </div>
   );
-}
+});

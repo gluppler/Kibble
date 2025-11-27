@@ -87,12 +87,20 @@ export function AlertProvider({ children }: { children: ReactNode }) {
 
       // Show browser notification if permission granted
       // Only show if in secure context and permission is granted
+      // Don't show notifications on auth pages to prevent duplicate tab opening
       if (
         notificationPermission === 'granted' && 
         typeof window !== 'undefined' && 
         'Notification' in window &&
         window.isSecureContext
       ) {
+        // Check if we're on an auth page - don't show notifications on auth pages
+        const currentPath = window.location.pathname;
+        if (currentPath.startsWith('/auth/') || currentPath.startsWith('/signin')) {
+          // Don't create notifications on auth pages to prevent duplicate tab opening
+          return newAlerts;
+        }
+        
         const title = formatAlertTitle(alert);
         const body = formatAlertMessage(alert);
         
@@ -172,6 +180,28 @@ export function AlertProvider({ children }: { children: ReactNode }) {
    */
   const clearAllAlerts = useCallback(() => {
     setAlerts([]);
+  }, []);
+
+  /**
+   * Cleanup old alerts (expiration)
+   * 
+   * Removes alerts older than 7 days to prevent memory buildup.
+   * Runs periodically to clean up stale alerts.
+   */
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setAlerts((prev) => {
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        return prev.filter((alert) => {
+          const alertTime = alert.createdAt instanceof Date 
+            ? alert.createdAt.getTime() 
+            : new Date(alert.createdAt).getTime();
+          return alertTime > sevenDaysAgo;
+        });
+      });
+    }, 60 * 60 * 1000); // Check every hour
+
+    return () => clearInterval(cleanupInterval);
   }, []);
 
   return (

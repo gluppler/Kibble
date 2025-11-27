@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -21,6 +21,7 @@ import {
 import type { Column, Task } from "@/lib/types";
 import { KanbanTask } from "./kanban-task";
 import { useAlerts } from "@/contexts/alert-context";
+import { getDateInputFormatHint } from "@/lib/date-utils";
 
 /**
  * Props for KanbanColumn component
@@ -30,6 +31,7 @@ interface KanbanColumnProps {
   onTaskAdded?: () => void;
   onTaskEdit?: (task: Task) => void;
   onTaskDelete?: (task: Task) => void;
+  onTaskArchive?: (task: Task) => void;
 }
 
 /**
@@ -37,7 +39,7 @@ interface KanbanColumnProps {
  * 
  * Renders a column container with tasks, task creation form, and drag-and-drop support.
  */
-export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: KanbanColumnProps) {
+export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, onTaskArchive }: KanbanColumnProps) {
   // Alert context for real-time alerts
   const { checkTaskForAlert } = useAlerts();
   
@@ -46,6 +48,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskError, setTaskError] = useState("");
 
   // Drag and drop configuration - makes this column a drop target
   const { setNodeRef, isOver } = useDroppable({
@@ -79,8 +82,10 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
    * 2. Prepares request body with proper null handling
    * 3. Sends POST request to create task
    * 4. Resets form and triggers board refetch on success
+   * 
+   * Memoized with useCallback to prevent unnecessary re-renders
    */
-  const handleAddTask = async (e: React.FormEvent) => {
+  const handleAddTask = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate title is provided
@@ -123,8 +128,11 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         const errorMessage = data.error || "Failed to create task. Tasks can only be created in the 'To-Do' column.";
-        console.error("[TASK CREATE] Failed to create task:", data);
-        alert(errorMessage);
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.error("[TASK CREATE] Failed to create task:", data);
+        }
+        setTaskError(errorMessage);
         return;
       }
 
@@ -140,6 +148,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
       setTaskTitle("");
       setTaskDescription("");
       setTaskDueDate("");
+      setTaskError("");
       setIsAddingTask(false);
 
       // Refetch board to get the new task - ensure it's awaited
@@ -147,10 +156,13 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
         await onTaskAdded();
       }
     } catch (error) {
-      console.error("[TASK CREATE] Error creating task:", error);
-      alert(error instanceof Error ? error.message : "Failed to create task. Please try again.");
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("[TASK CREATE] Error creating task:", error);
+      }
+      setTaskError(error instanceof Error ? error.message : "Failed to create task. Please try again.");
     }
-  };
+  }, [taskTitle, taskDescription, taskDueDate, column.id, onTaskAdded, checkTaskForAlert]);
 
   /**
    * Determines if tasks can be created in this column
@@ -172,27 +184,39 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
         <h2 className="font-bold text-sm sm:text-base text-black dark:text-white truncate flex-1">
           {column.title}
         </h2>
-        <span className="px-2 py-0.5 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded-full ml-2 flex-shrink-0">
+        <span className="px-2 py-0.5 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded ml-2 flex-shrink-0">
           {column.tasks.length}
         </span>
       </div>
       <div className="space-y-2 overflow-y-auto scrollbar-thin overflow-x-hidden">
-        <SortableContext 
-          items={taskIds} 
-          strategy={verticalListSortingStrategy}
-        >
-          {sortedTasks.map((task: Task) => (
-            <KanbanTask
-              key={task.id}
-              task={task}
-              columnTitle={column.title}
-              onEdit={onTaskEdit}
-              onDelete={onTaskDelete}
-            />
-          ))}
-        </SortableContext>
+        {sortedTasks.length === 0 && !isAddingTask ? (
+          <div className="text-center py-6 px-2">
+            <p className="text-xs text-black/40 dark:text-white/40 font-bold">No tasks</p>
+          </div>
+        ) : (
+          <SortableContext 
+            items={taskIds} 
+            strategy={verticalListSortingStrategy}
+          >
+            {sortedTasks.map((task: Task) => (
+              <KanbanTask
+                key={task.id}
+                task={task}
+                columnTitle={column.title}
+                onEdit={onTaskEdit}
+                onDelete={onTaskDelete}
+                onArchive={onTaskArchive}
+              />
+            ))}
+          </SortableContext>
+        )}
         {isAddingTask ? (
           <form onSubmit={handleAddTask} className="space-y-2 flex-shrink-0">
+            {taskError && (
+              <div className="p-2 bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 rounded-lg text-xs text-black dark:text-white font-bold">
+                {taskError}
+              </div>
+            )}
             <motion.input
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -213,16 +237,21 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
               rows={2}
               className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent resize-none transition-all text-xs sm:text-sm font-bold"
             />
-            <motion.input
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 }}
-              type="datetime-local"
-              value={taskDueDate}
-              onChange={(e) => setTaskDueDate(e.target.value)}
-              placeholder="Due date (optional)"
-              className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
-            />
+            <div>
+              <motion.input
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+                type="datetime-local"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+                title={`Due date (optional) - Format: ${getDateInputFormatHint()}`}
+                className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
+              />
+              <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
+                Format: {getDateInputFormatHint()}
+              </p>
+            </div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -242,6 +271,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete }: 
                   setTaskTitle("");
                   setTaskDescription("");
                   setTaskDueDate("");
+                  setTaskError("");
                 }}
                 className="px-2.5 sm:px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
               >

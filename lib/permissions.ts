@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db";
 import type { Session } from "next-auth";
+import { logSecurityEvent } from "@/lib/security-logger";
 
 /**
  * Permission check result
@@ -63,6 +64,18 @@ export async function checkBoardOwnership(
     }
 
     if (board.userId !== userId) {
+      // Log security event
+      logSecurityEvent({
+        type: "permission_denied",
+        userId: userId,
+        details: {
+          resourceType: "board",
+          resourceId: boardId,
+          reason: "User does not own board",
+        },
+        timestamp: new Date(),
+      });
+
       return {
         allowed: false,
         error: "Forbidden: You can only access your own boards",
@@ -115,6 +128,18 @@ export async function checkTaskOwnership(
     }
 
     if (task.column.board.userId !== userId) {
+      // Log security event
+      logSecurityEvent({
+        type: "permission_denied",
+        userId: userId,
+        details: {
+          resourceType: "task",
+          resourceId: taskId,
+          reason: "User does not own task's board",
+        },
+        timestamp: new Date(),
+      });
+
       return {
         allowed: false,
         error: "Forbidden: You can only access your own tasks",
@@ -163,6 +188,18 @@ export async function checkColumnOwnership(
     }
 
     if (column.board.userId !== userId) {
+      // Log security event
+      logSecurityEvent({
+        type: "permission_denied",
+        userId: userId,
+        details: {
+          resourceType: "column",
+          resourceId: columnId,
+          reason: "User does not own column's board",
+        },
+        timestamp: new Date(),
+      });
+
       return {
         allowed: false,
         error: "Forbidden: You can only access your own columns",

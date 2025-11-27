@@ -87,8 +87,8 @@ export function EditBoardDialog({
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-opacity"
-                  aria-label="Close"
+                  className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all"
+                  aria-label="Close dialog"
                   type="button"
                 >
                   <X className="text-black dark:text-white" size={18} />
@@ -127,7 +127,8 @@ export function EditBoardDialog({
                     disabled={loading || !title.trim()}
                     whileHover={{ scale: loading ? 1 : 1.01 }}
                     whileTap={{ scale: loading ? 1 : 0.99 }}
-                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-opacity text-xs sm:text-sm font-bold"
+                    className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-black dark:bg-white text-white dark:text-black hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all text-xs sm:text-sm font-bold"
+                    aria-label={loading ? "Updating board..." : "Update board"}
                   >
                     {loading ? "Updating..." : "Update Board"}
                   </motion.button>
@@ -135,7 +136,8 @@ export function EditBoardDialog({
                     type="button"
                     onClick={onClose}
                     disabled={loading}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 text-xs sm:text-sm font-bold"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold"
+                    aria-label="Cancel editing"
                   >
                     Cancel
                   </button>
