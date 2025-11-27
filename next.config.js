@@ -24,6 +24,34 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', 'framer-motion'],
   },
   
+  // PWA and mobile optimizations
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
+          },
+        ],
+      },
+      {
+        source: '/manifest.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600',
+          },
+        ],
+      },
+    ];
+  },
+  
   // Note: Turbopack (default in Next.js 16) automatically handles:
   // - Node.js module fallbacks (fs, net, tls) for client-side code
   // - Bundle optimization

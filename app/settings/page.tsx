@@ -18,6 +18,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { logError } from "@/lib/logger";
 import { 
   Settings, 
   User, 
@@ -68,7 +69,7 @@ export default function SettingsPage() {
             setMfaEnabled(data.mfaEnabled);
           }
         })
-        .catch((err) => console.error("Error fetching MFA status:", err));
+        .catch((err) => logError("Error fetching MFA status:", err));
     }
   }, [session]);
 
@@ -92,7 +93,7 @@ export default function SettingsPage() {
       setShowMfaSetup(true);
       setMfaLoading(false);
     } catch (err) {
-      console.error("Error setting up MFA:", err);
+      logError("Error setting up MFA:", err);
       setError("Failed to set up MFA");
       setMfaLoading(false);
     }
@@ -125,7 +126,7 @@ export default function SettingsPage() {
       setMfaSecret("");
       setMfaLoading(false);
     } catch (err) {
-      console.error("Error verifying MFA:", err);
+      logError("Error verifying MFA:", err);
       setError("Failed to verify MFA code");
       setMfaLoading(false);
     }
@@ -156,7 +157,7 @@ export default function SettingsPage() {
       setDisablePassword("");
       setMfaLoading(false);
     } catch (err) {
-      console.error("Error disabling MFA:", err);
+      logError("Error disabling MFA:", err);
       setError("Failed to disable MFA");
       setMfaLoading(false);
     }
@@ -230,7 +231,7 @@ export default function SettingsPage() {
       router.push("/auth/signin");
       router.refresh();
     } catch (err) {
-      console.error("Error deleting account:", err);
+      logError("Error deleting account:", err);
       setError("An unexpected error occurred");
       setLoading(false);
       setIsDeleting(false);

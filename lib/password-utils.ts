@@ -11,6 +11,7 @@
 
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { logError, logWarn } from "@/lib/logger";
 
 /**
  * Checks if a password is already in use by another user
@@ -62,10 +63,7 @@ export async function isPasswordUnique(
         }
       } catch (error) {
         // If comparison fails (e.g., invalid hash), treat as no match and continue
-        // Only log in development
-        if (process.env.NODE_ENV === "development") {
-          console.warn(`Error comparing password for user ${user.id}:`, error);
-        }
+        logWarn(`Error comparing password for user ${user.id}:`, error);
         continue;
       }
     }
@@ -75,10 +73,7 @@ export async function isPasswordUnique(
   } catch (error) {
     // On error, allow the password (fail open for availability)
     // Log the error for investigation
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.error("Error checking password uniqueness:", error);
-    }
+    logError("Error checking password uniqueness:", error);
     return true;
   }
 }

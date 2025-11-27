@@ -23,6 +23,26 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* Mobile touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Allow panning and zooming for specific elements */
+input,
+textarea,
+select {
+  touch-action: auto;
+}
+
+/* Disable text selection on drag elements */
+[draggable="true"],
+[data-dnd-drag-handle] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  touch-action: none;
 }
 
 html {
@@ -137,8 +157,80 @@ body {
   
   @media (max-width: 640px) {
     .kanban-grid {
-      grid-template-columns: repeat(var(--column-count, 4), minmax(200px, 1fr));
+      grid-template-columns: repeat(var(--column-count, 4), minmax(280px, 1fr));
       overflow-x: auto;
+    }
+  }
+  
+  /* Kanban columns container - mobile-first responsive with aggressive wrapping */
+  .kanban-columns-container {
+    /* Always wrap columns when they don't fit - no horizontal scroll */
+    display: flex;
+    flex-wrap: wrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    width: 100%;
+    align-items: flex-start;
+    gap: clamp(0.5rem, 1.5vw, 1rem);
+  }
+  
+  /* Kanban column wrapper - responsive sizing that wraps when needed */
+  .kanban-column-wrapper {
+    /* Mobile and small screens: 2 columns per row */
+    /* Use flex-basis with min-width to force wrapping when space is tight */
+    flex-basis: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    min-width: 0 !important;
+    flex: 0 0 calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    max-width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+  }
+  
+  /* Medium screens: 2 columns per row (wider) */
+  @media (min-width: 480px) and (max-width: 1023px) {
+    .kanban-column-wrapper {
+      /* Still 2 columns per row on medium screens */
+      flex-basis: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+      width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+      flex: 0 0 calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+      max-width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    }
+  }
+  
+  /* Large screens: aggressive wrapping - wrap when columns don't fit */
+  /* Use flex-basis with min-width to force wrapping when space is tight */
+  @media (min-width: 1024px) {
+    .kanban-columns-container {
+      /* Always wrap - never use horizontal scroll */
+      flex-wrap: wrap;
+      overflow-x: hidden;
+    }
+    
+    .kanban-column-wrapper {
+      /* Use flex-basis that allows wrapping when space is tight */
+      /* flex: 1 1 allows shrinking, but min-width prevents it from getting too small */
+      /* When flex-basis + min-width constraint can't fit, flex-wrap moves to next row */
+      flex: 1 1 calc((100% - (3 * clamp(0.5rem, 1.5vw, 1rem))) / 4) !important;
+      min-width: 200px !important;
+      max-width: calc((100% - (3 * clamp(0.5rem, 1.5vw, 1rem))) / 4) !important;
+      width: auto !important;
+    }
+    
+    /* When window is resized and available space < (min-width * 4 + gaps), */
+    /* flex-wrap: wrap will automatically move columns to next row */
+    /* This ensures wrapping happens even with just 10% overflow */
+  }
+  
+  /* Extra large screens: still wrap aggressively */
+  @media (min-width: 1280px) {
+    .kanban-column-wrapper {
+      /* Slightly larger min-width, but still forces wrapping when space is tight */
+      min-width: 250px !important;
+      max-width: 350px !important;
+      /* Keep flexible sizing - will wrap if doesn't fit */
+      flex: 1 1 calc((100% - (3 * clamp(0.5rem, 1.5vw, 1rem))) / 4) !important;
+      width: auto !important;
     }
   }
   
@@ -150,7 +242,13 @@ body {
   }
   
   .column-min-width {
-    min-width: clamp(200px, 20vw, 300px);
+    min-width: clamp(280px, 90vw, 320px);
+  }
+  
+  @media (min-width: 640px) {
+    .column-min-width {
+      min-width: clamp(250px, 20vw, 300px);
+    }
   }
   
   /* Fluid typography */
@@ -236,5 +334,39 @@ body {
     background-color: transparent;
     width: 18px;
     height: 18px;
+  }
+  
+  /* Mobile-specific optimizations */
+  @media (max-width: 640px) {
+    /* Larger touch targets for mobile */
+    button,
+    a,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Prevent text size adjustment on orientation change */
+    body {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    
+    /* Optimize scrolling on mobile */
+    .overflow-y-auto,
+    .overflow-x-auto {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+  }
+  
+  /* Landscape orientation optimizations */
+  @media (orientation: landscape) and (max-height: 500px) {
+    /* Reduce padding in landscape mode on small screens */
+    .p-2,
+    .p-3,
+    .p-4 {
+      padding: 0.5rem;
+    }
   }
 }

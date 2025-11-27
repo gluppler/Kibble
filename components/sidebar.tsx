@@ -375,6 +375,14 @@ export function Sidebar({
               {/* Footer */}
               <div className="p-3 sm:p-4 border-t border-black/10 dark:border-white/10 space-y-2">
                 <Link
+                  href="/archive"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"
+                >
+                  <Archive size={14} />
+                  <span className="text-xs sm:text-sm">Archive</span>
+                </Link>
+                <Link
                   href="/settings"
                   onClick={() => setIsOpen(false)}
                   className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold"

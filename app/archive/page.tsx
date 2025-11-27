@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { logError, logWarn } from "@/lib/logger";
 import {
   Archive,
   ArrowLeft,
@@ -100,10 +101,7 @@ export default function ArchivePage() {
         setTasks(data.tasks || []);
       }
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error fetching archived items:", err);
-      }
+      logError("Error fetching archived items:", err);
       setError("Failed to load archived items");
     } finally {
       if (!silent) {
@@ -184,10 +182,7 @@ export default function ArchivePage() {
             fetchArchivedItems(true); // Silent refresh
           }
         } catch (err) {
-          // Only log in development
-          if (process.env.NODE_ENV === "development") {
-            console.warn("Error parsing storage event:", err);
-          }
+          logWarn("Error parsing storage event:", err);
         }
       }
     };
@@ -258,10 +253,7 @@ export default function ArchivePage() {
       
       await fetchArchivedItems();
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error restoring board:", err);
-      }
+      logError("Error restoring board:", err);
       setError("Failed to restore board");
     } finally {
       setRestoring(null);
@@ -284,10 +276,7 @@ export default function ArchivePage() {
       
       await fetchArchivedItems();
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error restoring task:", err);
-      }
+      logError("Error restoring task:", err);
       setError("Failed to restore task");
     } finally {
       setRestoring(null);
@@ -308,10 +297,7 @@ export default function ArchivePage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error exporting:", err);
-      }
+      logError("Error exporting:", err);
       setError("Failed to export archive");
     }
   };

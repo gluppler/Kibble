@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, X, AlertCircle, Calendar, CheckCircle2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useAlerts } from "@/contexts/alert-context";
+import { logError, logWarn } from "@/lib/logger";
 import type { Alert } from "@/lib/alert-utils";
 
 export function NotificationSystem() {
@@ -62,31 +63,42 @@ export function NotificationSystem() {
         if (!tasksRes.ok) {
           // If unauthorized, stop checking
           if (tasksRes.status === 401 || tasksRes.status === 403) {
-            if (process.env.NODE_ENV === "development") {
-              console.warn("Unauthorized access to tasks - stopping alert checks");
-            }
+            logWarn("Unauthorized access to tasks - stopping alert checks");
             return;
           }
           return;
         }
 
-        const { tasks } = await tasksRes.json();
+        const data = await tasksRes.json();
+        
+        // Safety check: ensure data is valid and has tasks array
+        if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
+          logWarn("Invalid response from /api/tasks/alerts - expected tasks array");
+          return;
+        }
+
+        const { tasks } = data;
 
         // Check each task for alerts
         // Permission: API route ensures only user's own tasks are returned
         // Duplicate detection in alert context prevents duplicate alerts
-        for (const task of tasks || []) {
+        for (const task of tasks) {
+          // Safety check: ensure task is valid object
+          if (!task || typeof task !== 'object') continue;
+          
           if (task.dueDate && !task.locked) {
-            checkTaskForAlert(task);
+            try {
+              checkTaskForAlert(task);
+            } catch (taskError) {
+              // Log error but continue processing other tasks
+              logError("Error checking task for alert:", taskError);
+            }
           }
         }
 
         setHasChecked(true);
       } catch (error) {
-        // Only log in development
-        if (process.env.NODE_ENV === "development") {
-          console.error("Failed to check due dates:", error);
-        }
+        logError("Failed to check due dates:", error);
       }
     };
 
@@ -110,6 +122,30 @@ export function NotificationSystem() {
     }
   }, [alerts.length, isOpen]);
 
+  // Separate alerts by type for better organization (memoized to avoid recalculation)
+  // MUST be called before any early returns to follow Rules of Hooks
+  const { urgentAlerts, completionAlerts } = useMemo(() => {
+    // Safety check: ensure alerts is an array
+    if (!Array.isArray(alerts) || alerts.length === 0) {
+      return { urgentAlerts: [], completionAlerts: [] };
+    }
+
+    // Filter alerts with proper null/undefined checks
+    const urgent = alerts.filter((a) => {
+      // Safety check: ensure alert exists and has required properties
+      if (!a || typeof a !== 'object') return false;
+      return a.color === 'red' && a.closed !== true;
+    });
+    
+    const completion = alerts.filter((a) => {
+      // Safety check: ensure alert exists and has required properties
+      if (!a || typeof a !== 'object') return false;
+      return a.color === 'green' && a.closed !== true;
+    });
+    
+    return { urgentAlerts: urgent, completionAlerts: completion };
+  }, [alerts]);
+
   // Don't show notification system on auth pages
   if (typeof window !== 'undefined') {
     const currentPath = window.location.pathname;
@@ -118,14 +154,7 @@ export function NotificationSystem() {
     }
   }
 
-  if (alerts.length === 0) return null;
-
-  // Separate alerts by type for better organization (memoized to avoid recalculation)
-  const { urgentAlerts, completionAlerts } = useMemo(() => {
-    const urgent = alerts.filter((a) => a.color === 'red' && !a.closed);
-    const completion = alerts.filter((a) => a.color === 'green' && !a.closed);
-    return { urgentAlerts: urgent, completionAlerts: completion };
-  }, [alerts]);
+  if (!Array.isArray(alerts) || alerts.length === 0) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm w-[calc(100vw-2rem)] sm:w-auto">
@@ -236,32 +265,45 @@ export function NotificationSystem() {
  * @param onClose - Callback when alert is closed
  */
 const AlertItem = memo(function AlertItem({ alert, onClose }: { alert: Alert; onClose: () => void }) {
+  // Safety check: ensure alert is valid
+  if (!alert || typeof alert !== 'object') {
+    return null;
+  }
+
   const getAlertContent = () => {
-    if (alert.type === 'completion') {
+    // Safety check: ensure alert has required properties
+    const taskTitle = alert.taskTitle || 'Unknown Task';
+    const alertType = alert.type || 'urgent';
+    
+    if (alertType === 'completion') {
       return {
         icon: CheckCircle2,
         iconColor: 'text-black dark:text-white',
         bgColor: 'bg-white dark:bg-black',
         borderColor: 'border-black/20 dark:border-white/20',
         borderWidth: 'border-2',
-        message: `Congratulations! "${alert.taskTitle}" has been moved to Done`,
+        message: `Congratulations! "${taskTitle}" has been moved to Done`,
       };
     }
 
     // Urgent/Warning alerts - use stronger borders for visual distinction
-    const isOverdue = alert.daysUntil !== undefined && alert.daysUntil < 0;
-    const isDueToday = alert.daysUntil === 0;
-    const isDueTomorrow = alert.daysUntil === 1;
+    const daysUntil = typeof alert.daysUntil === 'number' ? alert.daysUntil : undefined;
+    const isOverdue = daysUntil !== undefined && daysUntil < 0;
+    const isDueToday = daysUntil === 0;
+    const isDueTomorrow = daysUntil === 1;
 
     let message = '';
-    if (isOverdue) {
-      message = `"${alert.taskTitle}" is overdue by ${Math.abs(alert.daysUntil!)} day${Math.abs(alert.daysUntil!) !== 1 ? 's' : ''}`;
+    if (isOverdue && daysUntil !== undefined) {
+      const daysOverdue = Math.abs(daysUntil);
+      message = `"${taskTitle}" is overdue by ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''}`;
     } else if (isDueToday) {
-      message = `"${alert.taskTitle}" is due today`;
+      message = `"${taskTitle}" is due today`;
     } else if (isDueTomorrow) {
-      message = `"${alert.taskTitle}" is due tomorrow`;
+      message = `"${taskTitle}" is due tomorrow`;
+    } else if (daysUntil !== undefined) {
+      message = `"${taskTitle}" is due in ${daysUntil} days`;
     } else {
-      message = `"${alert.taskTitle}" is due in ${alert.daysUntil} days`;
+      message = `"${taskTitle}" has a due date`;
     }
 
     // Use stronger border for urgent alerts to distinguish from completion
@@ -289,7 +331,7 @@ const AlertItem = memo(function AlertItem({ alert, onClose }: { alert: Alert; on
         <Icon className={`${content.iconColor} flex-shrink-0 mt-0.5`} size={16} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-black dark:text-white truncate">
-            {alert.taskTitle}
+            {alert.taskTitle || 'Unknown Task'}
           </p>
           <p className="text-xs text-black/60 dark:text-white/60 mt-0.5 font-bold">
             {content.message}
@@ -297,8 +339,9 @@ const AlertItem = memo(function AlertItem({ alert, onClose }: { alert: Alert; on
         </div>
         <button
           onClick={onClose}
-          className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex-shrink-0"
+          className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
           aria-label="Close alert"
+          type="button"
         >
           <X className="text-black dark:text-white" size={12} />
         </button>

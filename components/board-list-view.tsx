@@ -9,18 +9,9 @@
 
 import { useMemo, memo } from "react";
 import { motion } from "framer-motion";
-import { Calendar, AlertCircle, Edit2, Trash2, Lock } from "lucide-react";
-import type { Task, Column } from "@/lib/types";
+import { Calendar, AlertCircle, Edit2, Trash2, Lock, Archive } from "lucide-react";
+import type { Task, Board, Column } from "@/lib/types";
 import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
-
-/**
- * Board interface - represents a complete kanban board with columns and tasks
- */
-interface Board {
-  id: string;
-  title: string;
-  columns: (Column & { tasks: Task[] })[];
-}
 
 /**
  * Props for BoardListView component
@@ -29,6 +20,7 @@ interface BoardListViewProps {
   board: Board;
   onTaskEdit?: (task: Task) => void;
   onTaskDelete?: (task: Task) => void;
+  onTaskArchive?: (task: Task) => void;
 }
 
 /**
@@ -37,7 +29,7 @@ interface BoardListViewProps {
  * Renders board tasks in a simple vertical list layout.
  * Memoized to prevent unnecessary re-renders.
  */
-export const BoardListView = memo(function BoardListView({ board, onTaskEdit, onTaskDelete }: BoardListViewProps) {
+export const BoardListView = memo(function BoardListView({ board, onTaskEdit, onTaskDelete, onTaskArchive }: BoardListViewProps) {
   // Flatten all tasks with their column information
   const allTasks = useMemo(() => {
     const tasks: Array<Task & { column: Column }> = [];
@@ -57,7 +49,7 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
           <p className="text-xs text-black/40 dark:text-white/40 font-bold">Create your first task in the To-Do column</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 sm:space-y-3">
           {allTasks.map((task) => {
             const dueDateStatus = getDueDateStatus(task.dueDate || null);
             const dueDate = task.dueDate
@@ -74,7 +66,7 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
                     ? "border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 opacity-70"
                     : dueDateStatus.status === "overdue"
                     ? "border-black dark:border-white bg-black/10 dark:bg-white/10"
-                    : "border-black/10 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-md"
+                    : "border-black/10 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-md active:scale-[0.98]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -130,26 +122,39 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
                           : ""}
                       </div>
                     )}
-                    {(onTaskEdit || onTaskDelete) && (
-                      <div className="flex items-center gap-1">
+                    {(onTaskEdit || onTaskArchive || onTaskDelete) && (
+                      <div className="flex items-center gap-1 sm:gap-1.5">
                         {onTaskEdit && !task.locked && (
                           <button
                             onClick={() => onTaskEdit(task)}
-                            className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            className="p-2 sm:p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                             aria-label="Edit task"
                             type="button"
                           >
-                            <Edit2 size={14} className="text-black dark:text-white" />
+                            <Edit2 size={14} className="text-black dark:text-white hidden sm:block" />
+                            <Edit2 size={16} className="text-black dark:text-white sm:hidden" />
+                          </button>
+                        )}
+                        {onTaskArchive && (
+                          <button
+                            onClick={() => onTaskArchive(task)}
+                            className="p-2 sm:p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
+                            aria-label="Archive task"
+                            type="button"
+                          >
+                            <Archive size={14} className="text-black dark:text-white hidden sm:block" />
+                            <Archive size={16} className="text-black dark:text-white sm:hidden" />
                           </button>
                         )}
                         {onTaskDelete && (
                           <button
                             onClick={() => onTaskDelete(task)}
-                            className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            className="p-2 sm:p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                             aria-label="Delete task"
                             type="button"
                           >
-                            <Trash2 size={14} className="text-black dark:text-white" />
+                            <Trash2 size={14} className="text-black dark:text-white hidden sm:block" />
+                            <Trash2 size={16} className="text-black dark:text-white sm:hidden" />
                           </button>
                         )}
                       </div>

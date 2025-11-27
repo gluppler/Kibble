@@ -18,6 +18,7 @@ import {
   requestNotificationPermission,
   clearNotificationTag,
 } from "@/lib/alert-utils";
+import { logError, logWarn } from "@/lib/logger";
 
 /**
  * Alert context type
@@ -71,12 +72,34 @@ export function AlertProvider({ children }: { children: ReactNode }) {
    * Prevents duplicate alerts for the same task and type using strict matching.
    */
   const addAlert = useCallback((alert: Alert) => {
+    // Validate alert object before processing
+    if (!alert || typeof alert !== 'object') {
+      logError("[ALERT CONTEXT] Invalid alert object:", alert);
+      return;
+    }
+    
+    // Validate required alert properties
+    if (!alert.id || typeof alert.id !== 'string') {
+      logError("[ALERT CONTEXT] Alert missing valid id:", alert);
+      return;
+    }
+    
+    if (!alert.taskId || typeof alert.taskId !== 'string') {
+      logError("[ALERT CONTEXT] Alert missing valid taskId:", alert);
+      return;
+    }
+    
+    if (!alert.taskTitle || typeof alert.taskTitle !== 'string') {
+      logError("[ALERT CONTEXT] Alert missing valid taskTitle:", alert);
+      return;
+    }
+    
     setAlerts((prev) => {
       // Strict duplicate check: Use alert ID (which is now stable based on taskId + type)
       // This prevents duplicates more reliably than checking multiple fields
       const exists = prev.some(
         (a) => 
-          a.id === alert.id && // Same alert ID (stable ID based on taskId + type)
+          a && a.id === alert.id && // Same alert ID (stable ID based on taskId + type)
           !a.closed // Not already closed
       );
       
@@ -169,10 +192,32 @@ export function AlertProvider({ children }: { children: ReactNode }) {
    * Adds a completion alert for a task moved to Done
    * 
    * @param task - Task that was completed
+   * 
+   * Validates task before creating alert to prevent errors.
    */
   const addCompletionAlert = useCallback((task: any) => {
-    const alert = createCompletionAlert(task);
-    addAlert(alert);
+    // Validate task before creating alert
+    if (!task || typeof task !== 'object') {
+      logError("[ALERT CONTEXT] Invalid task for completion alert:", task);
+      return;
+    }
+    
+    if (!task.id || typeof task.id !== 'string') {
+      logError("[ALERT CONTEXT] Task missing valid id for completion alert:", task);
+      return;
+    }
+    
+    if (!task.title || typeof task.title !== 'string') {
+      logError("[ALERT CONTEXT] Task missing valid title for completion alert:", task);
+      return;
+    }
+    
+    try {
+      const alert = createCompletionAlert(task);
+      addAlert(alert);
+    } catch (error) {
+      logError("[ALERT CONTEXT] Failed to create completion alert:", error);
+    }
   }, [addAlert]);
 
   /**

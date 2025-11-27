@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { Column, Task } from "@/lib/types";
+import { logError } from "@/lib/logger";
 import { KanbanTask } from "./kanban-task";
 import { useAlerts } from "@/contexts/alert-context";
 import { getDateInputFormatHint } from "@/lib/date-utils";
@@ -28,7 +29,7 @@ import { getDateInputFormatHint } from "@/lib/date-utils";
  */
 interface KanbanColumnProps {
   column: Column & { tasks: Task[] };
-  onTaskAdded?: () => void;
+  onTaskAdded?: (newTask: Task) => void | Promise<void>;
   onTaskEdit?: (task: Task) => void;
   onTaskDelete?: (task: Task) => void;
   onTaskArchive?: (task: Task) => void;
@@ -39,7 +40,7 @@ interface KanbanColumnProps {
  * 
  * Renders a column container with tasks, task creation form, and drag-and-drop support.
  */
-export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, onTaskArchive }: KanbanColumnProps) {
+export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, onTaskArchive }: KanbanColumnProps) {
   // Alert context for real-time alerts
   const { checkTaskForAlert } = useAlerts();
   
@@ -128,10 +129,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         const errorMessage = data.error || "Failed to create task. Tasks can only be created in the 'To-Do' column.";
-        // Only log in development
-        if (process.env.NODE_ENV === "development") {
-          console.error("[TASK CREATE] Failed to create task:", data);
-        }
+          logError("[TASK CREATE] Failed to create task:", data);
         setTaskError(errorMessage);
         return;
       }
@@ -151,15 +149,13 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
       setTaskError("");
       setIsAddingTask(false);
 
-      // Refetch board to get the new task - ensure it's awaited
+      // Pass the new task to parent for optimistic update instead of full refetch
+      // This prevents page refresh and provides instant feedback
       if (onTaskAdded) {
-        await onTaskAdded();
+        await onTaskAdded(createdTask);
       }
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[TASK CREATE] Error creating task:", error);
-      }
+        logError("[TASK CREATE] Error creating task:", error);
       setTaskError(error instanceof Error ? error.message : "Failed to create task. Please try again.");
     }
   }, [taskTitle, taskDescription, taskDueDate, column.id, onTaskAdded, checkTaskForAlert]);
@@ -178,7 +174,13 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
       }`}
       whileHover={{ y: -1 }}
       transition={{ duration: 0.15, ease: "easeOut" }}
-      style={{ maxWidth: '100%' }}
+      style={{ 
+        maxWidth: '100%',
+        width: '100%',
+        height: '100%',
+        // Ensure proper touch handling for drag-and-drop
+        touchAction: 'none', // Prevent default touch behaviors to allow drag
+      }}
     >
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-black/10 dark:border-white/10 flex-shrink-0">
         <h2 className="font-bold text-sm sm:text-base text-black dark:text-white truncate flex-1">
@@ -260,7 +262,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
             >
               <button
                 type="submit"
-                className="flex-1 px-2.5 sm:px-3 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold shadow-sm hover:shadow-md"
+                className="flex-1 px-2.5 sm:px-3 py-2.5 sm:py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold shadow-sm hover:shadow-md min-h-[44px] sm:min-h-0"
               >
                 Add
               </button>
@@ -273,7 +275,7 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
                   setTaskDueDate("");
                   setTaskError("");
                 }}
-                className="px-2.5 sm:px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
+                className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold min-h-[44px] sm:min-h-0"
               >
                 Cancel
               </button>
@@ -284,7 +286,8 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
             onClick={() => setIsAddingTask(true)}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            className="w-full py-2.5 text-xs sm:text-sm text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white border-2 border-dashed border-black/20 dark:border-white/20 rounded-lg hover:border-black dark:hover:border-white hover:bg-black/5 dark:hover:bg-white/5 transition-all font-bold"
+            className="w-full py-3 sm:py-2.5 text-xs sm:text-sm text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white border-2 border-dashed border-black/20 dark:border-white/20 rounded-lg hover:border-black dark:hover:border-white hover:bg-black/5 dark:hover:bg-white/5 transition-all font-bold min-h-[44px] sm:min-h-0"
+            type="button"
           >
             + Add task
           </motion.button>
@@ -292,4 +295,4 @@ export function KanbanColumn({ column, onTaskAdded, onTaskEdit, onTaskDelete, on
       </div>
     </motion.div>
   );
-}
+});

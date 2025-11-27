@@ -9,18 +9,9 @@
 
 import { useMemo, memo } from "react";
 import { motion } from "framer-motion";
-import { Calendar, AlertCircle, Edit2, Trash2, Lock, Clock } from "lucide-react";
-import type { Task, Column } from "@/lib/types";
+import { Calendar, AlertCircle, Edit2, Trash2, Lock, Archive } from "lucide-react";
+import type { Task, Board, Column } from "@/lib/types";
 import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
-
-/**
- * Board interface - represents a complete kanban board with columns and tasks
- */
-interface Board {
-  id: string;
-  title: string;
-  columns: (Column & { tasks: Task[] })[];
-}
 
 /**
  * Props for BoardGridView component
@@ -29,6 +20,7 @@ interface BoardGridViewProps {
   board: Board;
   onTaskEdit?: (task: Task) => void;
   onTaskDelete?: (task: Task) => void;
+  onTaskArchive?: (task: Task) => void;
 }
 
 /**
@@ -37,7 +29,7 @@ interface BoardGridViewProps {
  * Renders board tasks in a responsive grid layout.
  * Memoized to prevent unnecessary re-renders.
  */
-export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, onTaskDelete }: BoardGridViewProps) {
+export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, onTaskDelete, onTaskArchive }: BoardGridViewProps) {
   // Flatten all tasks with their column information
   const allTasks = useMemo(() => {
     const tasks: Array<Task & { column: Column }> = [];
@@ -57,7 +49,7 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
           <p className="text-xs text-black/40 dark:text-white/40 font-bold">Create your first task in the To-Do column</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           {allTasks.map((task) => {
             const dueDateStatus = getDueDateStatus(task.dueDate || null);
             const dueDate = task.dueDate
@@ -69,12 +61,12 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
                 key={task.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className={`bg-white dark:bg-black p-3 sm:p-4 rounded-lg border transition-all ${
+                className={`bg-white dark:bg-black p-2.5 sm:p-3 md:p-4 rounded-lg border transition-all ${
                   task.locked
                     ? "border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 opacity-70"
                     : dueDateStatus.status === "overdue"
                     ? "border-black dark:border-white bg-black/10 dark:bg-white/10"
-                    : "border-black/10 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-lg"
+                    : "border-black/10 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-lg active:scale-[0.98]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -109,26 +101,39 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
                           : ""}
                       </div>
                     )}
-                    {(onTaskEdit || onTaskDelete) && (
+                    {(onTaskEdit || onTaskArchive || onTaskDelete) && (
                       <div className="flex items-center gap-1">
                         {onTaskEdit && !task.locked && (
                           <button
                             onClick={() => onTaskEdit(task)}
-                            className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            className="p-2 sm:p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                             aria-label="Edit task"
                             type="button"
                           >
-                            <Edit2 size={12} className="text-black dark:text-white" />
+                            <Edit2 size={12} className="text-black dark:text-white hidden sm:block" />
+                            <Edit2 size={14} className="text-black dark:text-white sm:hidden" />
+                          </button>
+                        )}
+                        {onTaskArchive && (
+                          <button
+                            onClick={() => onTaskArchive(task)}
+                            className="p-2 sm:p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
+                            aria-label="Archive task"
+                            type="button"
+                          >
+                            <Archive size={12} className="text-black dark:text-white hidden sm:block" />
+                            <Archive size={14} className="text-black dark:text-white sm:hidden" />
                           </button>
                         )}
                         {onTaskDelete && (
                           <button
                             onClick={() => onTaskDelete(task)}
-                            className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            className="p-2 sm:p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                             aria-label="Delete task"
                             type="button"
                           >
-                            <Trash2 size={12} className="text-black dark:text-white" />
+                            <Trash2 size={12} className="text-black dark:text-white hidden sm:block" />
+                            <Trash2 size={14} className="text-black dark:text-white sm:hidden" />
                           </button>
                         )}
                       </div>

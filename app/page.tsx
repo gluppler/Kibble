@@ -17,7 +17,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ import { CreateBoardDialog } from "@/components/create-board-dialog";
 import { EditBoardDialog } from "@/components/edit-board-dialog";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { NotificationSystem } from "@/components/notification-system";
+import { logError } from "@/lib/logger";
 
 /**
  * Board interface - minimal board representation for list views
@@ -66,17 +67,32 @@ export default function Home() {
   
   // UI state
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreatingDefault, setIsCreatingDefault] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
   const [deletingBoard, setDeletingBoard] = useState<Board | null>(null);
+  
+  // Ref to track if boards have been loaded to prevent duplicate loads
+  const hasLoadedBoards = useRef(false);
 
   /**
    * Creates a default board if no boards exist
    * 
    * This is called when a user has no boards yet.
    * Creates a board titled "Default" and sets it as the active board.
+   * 
+   * Includes protection against multiple simultaneous calls.
    */
   const createDefaultBoard = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (isCreatingDefault) {
+      return;
+    }
+
+    setIsCreatingDefault(true);
+    setError(null);
+
     try {
       const res = await fetch("/api/boards", {
         method: "POST",
@@ -86,7 +102,8 @@ export default function Home() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to create default board");
+        const errorMessage = errorData.error || "Failed to create default board";
+        throw new Error(errorMessage);
       }
 
       const board = await res.json();
@@ -99,30 +116,12 @@ export default function Home() {
         localStorage.setItem(BOARD_ID_STORAGE_KEY, board.id);
       }
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[BOARD CREATE] Error creating default board:", error);
-      }
+        logError("[BOARD CREATE] Error creating default board:", error);
+      setError(error instanceof Error ? error.message : "Failed to create default board");
+    } finally {
+      setIsCreatingDefault(false);
     }
-  }, []);
-
-  /**
-   * Authentication and board loading effect
-   * 
-   * Redirects unauthenticated users to sign-in page.
-   * Loads boards when user is authenticated.
-   */
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-      return;
-    }
-
-    if (status === "authenticated") {
-      loadBoards();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, router]);
+  }, [isCreatingDefault]);
 
   /**
    * Loads all boards for the current user
@@ -131,22 +130,42 @@ export default function Home() {
    * 1. Fetches boards from API
    * 2. Sets active board with priority:
    *    - Saved board from localStorage (if it exists in fetched boards)
-   *    - Current boardId (if it exists in fetched boards)
    *    - First board in list
    * 3. Creates default board if no boards exist
    * 4. Persists selected board to localStorage
+   * 
+   * Fixed: Removed boardId from dependencies to prevent infinite loops.
+   * Fixed: Added proper error handling and validation.
+   * Fixed: Added ref tracking to prevent duplicate loads.
    */
   const loadBoards = useCallback(async () => {
+    // Prevent duplicate loads
+    if (hasLoadedBoards.current && boards.length > 0) {
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    hasLoadedBoards.current = true;
+
     try {
       const res = await fetch("/api/boards/list");
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to load boards");
+        const errorMessage = errorData.error || "Failed to load boards";
+        
+        // If unauthorized, redirect to sign in
+        if (res.status === 401 || res.status === 403) {
+          router.push("/auth/signin");
+          return;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const data = await res.json();
-      const boardsList = data.boards || [];
+      const boardsList = Array.isArray(data.boards) ? data.boards : [];
       
       setBoards(boardsList);
       
@@ -160,32 +179,69 @@ export default function Home() {
         // Check if saved boardId exists in the fetched boards
         const savedBoardExists = savedBoardId && boardsList.some((b: Board) => b.id === savedBoardId);
         
-        // Use saved board if it exists, otherwise use current boardId if it exists, otherwise use first board
-        const targetBoardId = savedBoardExists 
-          ? savedBoardId 
-          : (boardId && boardsList.some((b: Board) => b.id === boardId))
-            ? boardId
-            : boardsList[0].id;
+        // Use saved board if it exists and is valid, otherwise use first board
+        const targetBoardId = savedBoardExists ? savedBoardId : boardsList[0].id;
         
-        setBoardId(targetBoardId);
+        // Validate that the target board ID exists in the list
+        const isValidBoard = boardsList.some((b: Board) => b.id === targetBoardId);
         
-        // Persist to localStorage
-        if (typeof window !== "undefined") {
-          localStorage.setItem(BOARD_ID_STORAGE_KEY, targetBoardId);
+        if (isValidBoard) {
+          setBoardId(targetBoardId);
+          // Persist to localStorage
+          if (typeof window !== "undefined") {
+            localStorage.setItem(BOARD_ID_STORAGE_KEY, targetBoardId);
+          }
+        } else {
+          // Fallback: use first board if target is invalid
+          setBoardId(boardsList[0].id);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(BOARD_ID_STORAGE_KEY, boardsList[0].id);
+          }
         }
       } else {
         // Create default board if none exist
+        // Clear any invalid boardId from localStorage first
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(BOARD_ID_STORAGE_KEY);
+        }
+        setBoardId(null);
         await createDefaultBoard();
       }
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[BOARD LOAD] Error loading boards:", error);
+        logError("[BOARD LOAD] Error loading boards:", error);
+      setError(error instanceof Error ? error.message : "Failed to load boards");
+      // Clear invalid boardId
+      setBoardId(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(BOARD_ID_STORAGE_KEY);
       }
+      // Reset ref on error to allow retry
+      hasLoadedBoards.current = false;
     } finally {
       setLoading(false);
     }
-  }, [createDefaultBoard, boardId]);
+  }, [createDefaultBoard, router, boards.length]);
+
+  /**
+   * Authentication and board loading effect
+   * 
+   * Redirects unauthenticated users to sign-in page.
+   * Loads boards when user is authenticated.
+   * 
+   * Fixed: Added proper dependency array and loading state check.
+   * Fixed: Use ref to prevent multiple simultaneous loads.
+   */
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+      return;
+    }
+
+    // Only load boards when authenticated and boards haven't been loaded yet
+    if (status === "authenticated" && !hasLoadedBoards.current && boards.length === 0) {
+      loadBoards();
+    }
+  }, [status, router, loadBoards, boards.length]);
 
   /**
    * Handles board creation
@@ -210,19 +266,18 @@ export default function Home() {
 
       const newBoard = await res.json();
 
-      // Refetch boards list to ensure consistency with database
-      await loadBoards();
-      
-      // Set the newly created board as active and persist
+      // Set the newly created board as active and persist first
       setBoardId(newBoard.id);
       if (typeof window !== "undefined") {
         localStorage.setItem(BOARD_ID_STORAGE_KEY, newBoard.id);
       }
+      
+      // Reset ref to allow reload
+      hasLoadedBoards.current = false;
+      // Refetch boards list to ensure consistency with database
+      await loadBoards();
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[BOARD CREATE] Error creating board:", error);
-      }
+        logError("[BOARD CREATE] Error creating board:", error);
       throw error;
     }
   };
@@ -297,13 +352,12 @@ export default function Home() {
         }
       }
 
+      // Reset ref to allow reload
+      hasLoadedBoards.current = false;
       // Refetch boards list
       await loadBoards();
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[BOARD ARCHIVE] Error archiving board:", error);
-      }
+        logError("[BOARD ARCHIVE] Error archiving board:", error);
     }
   }, [loadBoards]);
 
@@ -313,6 +367,7 @@ export default function Home() {
    * Refetches boards list and closes the edit dialog.
    */
   const handleBoardUpdate = useCallback(async () => {
+    hasLoadedBoards.current = false;
     await loadBoards();
     setEditingBoard(null);
   }, [loadBoards]);
@@ -344,20 +399,19 @@ export default function Home() {
         }
       }
 
+      // Reset ref to allow reload
+      hasLoadedBoards.current = false;
       // Refetch boards list to ensure consistency with database
       await loadBoards();
 
       setDeletingBoard(null);
     } catch (error) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("[BOARD DELETE] Error deleting board:", error);
-      }
+        logError("[BOARD DELETE] Error deleting board:", error);
       alert(error instanceof Error ? error.message : "Failed to delete board");
     }
   }, [deletingBoard, loadBoards]);
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || loading || isCreatingDefault) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
         <motion.div
@@ -366,7 +420,9 @@ export default function Home() {
           className="text-center"
         >
           <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-black dark:text-white font-bold text-sm sm:text-base">Loading your boards...</p>
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base">
+            {isCreatingDefault ? "Creating your first board..." : "Loading your boards..."}
+          </p>
         </motion.div>
       </div>
     );
@@ -374,6 +430,38 @@ export default function Home() {
 
   if (!session) {
     return null; // Will redirect
+  }
+
+  // Show error state if there's an error
+  if (error && boards.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
+        <div className="text-center max-w-md px-4">
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">Error loading boards</p>
+          <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">{error}</p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => {
+                setError(null);
+                hasLoadedBoards.current = false;
+                loadBoards();
+              }}
+              className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
+              type="button"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => setShowCreateDialog(true)}
+              className="px-4 py-2 border border-black dark:border-white text-black dark:text-white rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-xs sm:text-sm font-bold"
+              type="button"
+            >
+              Create Board
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!boardId) {
@@ -413,7 +501,29 @@ export default function Home() {
           transition={{ duration: 0.2 }}
           className="flex-1 w-full min-w-0 flex flex-col"
         >
-          <KanbanBoard boardId={boardId} />
+          {boardId && boards.some((b) => b.id === boardId) ? (
+            <KanbanBoard boardId={boardId} />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">Board not found</p>
+                <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">The selected board may have been deleted.</p>
+                <button
+                  onClick={() => {
+                    if (boards.length > 0) {
+                      handleBoardSelect(boards[0].id);
+                    } else {
+                      setShowCreateDialog(true);
+                    }
+                  }}
+                  className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
+                  type="button"
+                >
+                  {boards.length > 0 ? "Select First Board" : "Create Board"}
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </main>
 

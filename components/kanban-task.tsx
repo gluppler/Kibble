@@ -11,12 +11,13 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, MoreVertical, Lock, Clock, Archive } from "lucide-react";
 import type { Task } from "@/lib/types";
+import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
 
 /**
  * Props for KanbanTask component
@@ -27,60 +28,6 @@ interface KanbanTaskProps {
   onEdit?: (task: Task) => void;
   onDelete?: (task: Task) => void;
   onArchive?: (task: Task) => void;
-}
-
-/**
- * Calculates the status of a task's due date
- * 
- * @param dueDate - The task's due date (Date object, string, or null)
- * @returns Object containing status and days until/since due date
- * 
- * Status values:
- * - "overdue": Task is past due date
- * - "due-soon": Task is due today or within 3 days
- * - "upcoming": Task is due in more than 3 days
- * - null: No due date set
- */
-function getDueDateStatus(dueDate: Date | null | undefined): {
-  status: "overdue" | "due-soon" | "upcoming" | null;
-  daysUntil: number | null;
-} {
-  // Return null status if no due date
-  if (!dueDate) return { status: null, daysUntil: null };
-
-  // Calculate difference between due date and now
-  const now = new Date();
-  const due = new Date(dueDate);
-  const diffTime = due.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  // Determine status based on days difference
-  if (diffDays < 0) {
-    // Task is overdue
-    return { status: "overdue", daysUntil: Math.abs(diffDays) };
-  } else if (diffDays === 0) {
-    // Task is due today
-    return { status: "due-soon", daysUntil: 0 };
-  } else if (diffDays <= 3) {
-    // Task is due within 3 days
-    return { status: "due-soon", daysUntil: diffDays };
-  } else {
-    // Task is due in more than 3 days
-    return { status: "upcoming", daysUntil: diffDays };
-  }
-}
-
-/**
- * Formats a date to dd/mm/yyyy format
- * 
- * @param date - Date object to format
- * @returns Formatted date string in dd/mm/yyyy format
- */
-function formatDateToDDMMYYYY(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
 }
 
 /**
@@ -96,7 +43,7 @@ function formatDateToDDMMYYYY(date: Date): string {
  * - Auto-archive countdown timer
  * - Edit and delete actions
  */
-export function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: KanbanTaskProps) {
+export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: KanbanTaskProps) {
   // State for menu visibility
   const [showMenu, setShowMenu] = useState(false);
   // State for auto-archive countdown
@@ -236,7 +183,11 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: K
   return (
     <motion.div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        // Ensure proper touch handling for drag-and-drop on mobile
+        touchAction: isLocked ? 'auto' : 'none', // Prevent default touch behaviors to allow drag
+      }}
       {...(!isLocked ? { ...attributes, ...listeners } : {})}
       initial={{ opacity: 0, y: 10 }}
       animate={{ 
@@ -380,4 +331,4 @@ export function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: K
       )}
     </motion.div>
   );
-}
+});

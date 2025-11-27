@@ -4,6 +4,8 @@
  * Provides functions for date formatting and locale-aware date handling.
  */
 
+import { logWarn } from "@/lib/logger";
+
 /**
  * Gets the locale-specific date format string for display
  * 
@@ -50,10 +52,7 @@ function getLocaleDateFormat(): string {
     // Default fallback
     return "DD/MM/YYYY";
   } catch (error) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn("Error determining locale date format:", error);
-    }
+    logWarn("Error determining locale date format:", error);
     return "DD/MM/YYYY";
   }
 }

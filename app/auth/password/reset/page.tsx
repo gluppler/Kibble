@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Lock, Shield, CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import Link from "next/link";
+import { logError } from "@/lib/logger";
 
 type ResetStep = "email" | "code" | "password" | "success" | "error";
 
@@ -83,10 +84,7 @@ function PasswordResetForm() {
       setCodeType(data.hasMFA ? "totp" : "recovery");
       setLoading(false);
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error checking account status:", err);
-      }
+      logError("Error checking account status:", err);
       setError("An unexpected error occurred. Please try again.");
       setLoading(false);
     }
@@ -167,10 +165,7 @@ function PasswordResetForm() {
         router.push("/auth/signin");
       }, 3000);
     } catch (err) {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.error("Error resetting password:", err);
-      }
+      logError("Error resetting password:", err);
       setError("An unexpected error occurred. Please try again.");
       setLoading(false);
     }

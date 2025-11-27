@@ -6,6 +6,7 @@
  */
 
 import type { Task } from "@/lib/types";
+import { logError, logWarn } from "@/lib/logger";
 
 /**
  * Alert types
@@ -103,8 +104,23 @@ export function checkTaskAlert(task: Task): Alert | null {
  * @returns Completion alert object
  * 
  * Uses stable ID based on task ID to prevent duplicate alerts for the same completion.
+ * 
+ * @throws Error if task is missing required properties (id or title)
  */
 export function createCompletionAlert(task: Task): Alert {
+  // Validate task has required properties
+  if (!task || typeof task !== 'object') {
+    throw new Error('Task must be a valid object');
+  }
+  
+  if (!task.id || typeof task.id !== 'string') {
+    throw new Error('Task must have a valid id property');
+  }
+  
+  if (!task.title || typeof task.title !== 'string') {
+    throw new Error('Task must have a valid title property');
+  }
+  
   // Use stable ID based on task ID only - one completion alert per task
   // Visual distinction via borders/backgrounds in black/white design
   return {
@@ -134,19 +150,13 @@ export function createCompletionAlert(task: Task): Alert {
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   // Check if running in secure context (required for notifications)
   if (typeof window === 'undefined' || !window.isSecureContext) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn('Notifications require a secure context (HTTPS or localhost)');
-    }
+    logWarn('Notifications require a secure context (HTTPS or localhost)');
     return 'denied';
   }
 
   // Check if Notification API is available
   if (!('Notification' in window)) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn('Browser does not support notifications');
-    }
+    logWarn('Browser does not support notifications');
     return 'denied';
   }
 
@@ -167,19 +177,13 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     
     // Validate permission value (security check)
     if (permission !== 'granted' && permission !== 'denied' && permission !== 'default') {
-      // Only log in development
-      if (process.env.NODE_ENV === "development") {
-        console.warn('Invalid notification permission value:', permission);
-      }
+      logWarn('Invalid notification permission value:', permission);
       return 'denied';
     }
     
     return permission;
   } catch (error) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.error('Error requesting notification permission:', error);
-    }
+    logError('Error requesting notification permission:', error);
     return 'denied';
   }
 }
@@ -237,28 +241,19 @@ export function showBrowserNotification(
 ): Notification | null {
   // Security check: Must be in secure context
   if (typeof window === 'undefined' || !window.isSecureContext) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn('Notifications require a secure context (HTTPS or localhost)');
-    }
+    logWarn('Notifications require a secure context (HTTPS or localhost)');
     return null;
   }
 
   // Check if Notification API is available
   if (!('Notification' in window)) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn('Browser does not support notifications');
-    }
+    logWarn('Browser does not support notifications');
     return null;
   }
 
   // Check permission
   if (Notification.permission !== 'granted') {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.warn('Notification permission not granted');
-    }
+    logWarn('Notification permission not granted');
     return null;
   }
 
@@ -321,10 +316,7 @@ export function showBrowserNotification(
       } catch (error) {
         // If any error occurs, silently fail
         // This prevents crashes and doesn't disrupt user experience
-        // Only log in development
-        if (process.env.NODE_ENV === "development") {
-          console.warn('Could not handle notification click:', error);
-        }
+        logWarn('Could not handle notification click:', error);
       }
     };
 
@@ -340,14 +332,11 @@ export function showBrowserNotification(
       }, 5000);
     }
 
-    return notification;
-  } catch (error) {
-    // Only log in development
-    if (process.env.NODE_ENV === "development") {
-      console.error('Error showing notification:', error);
+      return notification;
+    } catch (error) {
+      logError('Error showing notification:', error);
+      return null;
     }
-    return null;
-  }
 }
 
 /**
