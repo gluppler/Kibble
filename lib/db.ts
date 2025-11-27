@@ -4,12 +4,19 @@
  * This module exports a singleton Prisma client instance that is reused across
  * the application. Optimized for serverless environments (Vercel).
  * 
+ * Security:
+ * - Uses parameterized queries (Prisma handles this)
+ * - Validates DATABASE_URL before creating client
+ * - Implements singleton pattern to prevent connection exhaustion
+ * - Proper error handling and connection management
+ * 
  * For Vercel production:
  * - Uses DATABASE_URL for all database connections
  * - Implements singleton pattern to prevent connection exhaustion
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { logError } from "./logger";
 
 /**
  * Type definition for global Prisma instance storage
@@ -18,6 +25,32 @@ import { PrismaClient } from "@prisma/client";
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
+
+/**
+ * Validates DATABASE_URL format
+ * 
+ * @param url - Database URL to validate
+ * @returns true if valid, false otherwise
+ */
+function validateDatabaseUrl(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  // Basic validation: must be a PostgreSQL connection string
+  const postgresPattern = /^postgresql:\/\//i;
+  if (!postgresPattern.test(url)) {
+    return false;
+  }
+
+  // Must contain host, port, and database
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.length > 0 && urlObj.pathname.length > 1;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Prisma client configuration optimized for serverless
@@ -35,16 +68,41 @@ const globalForPrisma = globalThis as unknown as {
  * Connection Pooling:
  * - Connection limit set to prevent exhaustion in serverless
  * - Query timeout configured for Vercel's 30s limit
+ * 
+ * Error Handling:
+ * - Validates DATABASE_URL before creating client
+ * - Logs errors appropriately
+ * - Provides helpful error messages
  */
-const createPrismaClient = () => {
-  return new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
+const createPrismaClient = (): PrismaClient => {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  // Security: Validate DATABASE_URL before creating client
+  if (!validateDatabaseUrl(databaseUrl)) {
+    const error = new Error(
+      "Invalid or missing DATABASE_URL. Please check your environment variables."
+    );
+    logError("Invalid DATABASE_URL:", { 
+      hasUrl: !!databaseUrl,
+      urlLength: databaseUrl?.length ?? 0,
+    });
+    throw error;
+  }
+
+  try {
+    return new PrismaClient({
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+      datasources: {
+        db: {
+          url: databaseUrl,
+        },
       },
-    },
-  });
+      errorFormat: "minimal", // Security: Don't expose detailed errors in production
+    });
+  } catch (error) {
+    logError("Failed to create Prisma client:", error);
+    throw error;
+  }
 };
 
 /**
@@ -53,22 +111,58 @@ const createPrismaClient = () => {
  * - In development: Reuses existing instance from global scope to prevent multiple instances during hot-reloading
  * - In production (serverless): Reuses global instance to prevent connection exhaustion
  * - Each serverless function invocation reuses the same instance if available
+ * 
+ * Security:
+ * - Validates DATABASE_URL before creating client
+ * - Uses singleton pattern to prevent connection exhaustion
+ * - Proper error handling
  */
-export const db =
-  globalForPrisma.prisma ?? createPrismaClient();
+export const db: PrismaClient = (() => {
+  // Return existing instance if available
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma;
+  }
+
+  // Create new instance
+  const client = createPrismaClient();
+
+  // Store in global scope
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+  } else {
+    // In production (serverless), also store in global to reuse across invocations
+    if (!globalForPrisma.prisma) {
+      globalForPrisma.prisma = client;
+    }
+  }
+
+  return client;
+})();
 
 /**
- * Store Prisma instance in global scope
+ * Health check function for database connection
  * 
- * This prevents creating multiple instances:
- * - In development: Prevents multiple instances during Next.js hot-reloading
- * - In serverless: Prevents connection exhaustion across function invocations
+ * @returns Promise<boolean> - true if connection is healthy, false otherwise
  */
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
-} else {
-  // In production (serverless), also store in global to reuse across invocations
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = db;
+export async function checkDatabaseHealth(): Promise<boolean> {
+  try {
+    await db.$queryRaw`SELECT 1`;
+    return true;
+  } catch (error) {
+    logError("Database health check failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Gracefully disconnect from database
+ * 
+ * Should be called on application shutdown
+ */
+export async function disconnectDatabase(): Promise<void> {
+  try {
+    await db.$disconnect();
+  } catch (error) {
+    logError("Error disconnecting from database:", error);
   }
 }

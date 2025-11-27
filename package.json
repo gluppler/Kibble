@@ -15,7 +15,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:push": "prisma db push",
-    "db:test": "ts-node scripts/test-db-connection.ts",
+    "db:test": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/test-db-connection.ts",
+    "db:cleanup": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/cleanup-database.ts",
+    "db:cleanup:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/cleanup-database.ts --apply",
     "postinstall": "prisma generate"
   },
   "dependencies": {
