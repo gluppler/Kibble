@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, Lock, Archive } from "lucide-react";
 import type { Task, Board, Column } from "@/lib/types";
 import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
+import { PriorityTag } from "@/components/priority-tag";
 
 /**
  * Props for BoardGridView component
@@ -51,7 +52,7 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           {allTasks.map((task) => {
-            const dueDateStatus = getDueDateStatus(task.dueDate || null);
+            const dueDateStatus = getDueDateStatus(task.dueDate);
             const dueDate = task.dueDate
               ? (task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate))
               : null;
@@ -83,6 +84,10 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
                     </h3>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <PriorityTag 
+                      priority={(task.priority as "normal" | "high") || "normal"} 
+                      size="sm"
+                    />
                     {dueDateStatus.status && (
                       <div
                         className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold ${

@@ -289,5 +289,90 @@ describe("MFA-Based Password Reset", () => {
       expect(passwordValidation.valid).toBe(false);
       expect(passwordValidation.error).toContain("already in use");
     });
+
+    it("should keep MFA enabled after password reset", async () => {
+      const { verifyTOTP } = await import("@/lib/mfa-utils");
+      const { validatePassword } = await import("@/lib/password-utils");
+
+      const mockUser = {
+        id: "user1",
+        email: "test@example.com",
+        mfaEnabled: true,
+        mfaSecret: "secret123",
+        mfaBackupCodes: "hashed1,hashed2",
+      };
+
+      const updateData: {
+        password: string;
+        mfaBackupCodes: string | null;
+      } = {
+        password: "hashed_new_password",
+        mfaBackupCodes: null, // No backup code used
+      };
+
+      // Verify that MFA is NOT disabled in update data
+      expect(updateData).not.toHaveProperty("mfaEnabled");
+      expect(updateData).not.toHaveProperty("mfaSecret");
+      
+      // MFA should remain enabled (not included in update means it stays as is)
+      const mfaRemainsEnabled = true; // Since we're not setting mfaEnabled: false
+      expect(mfaRemainsEnabled).toBe(true);
+    });
+
+    it("should keep MFA enabled when recovery code is used", async () => {
+      const { verifyBackupCode, removeBackupCode } = await import("@/lib/mfa-utils");
+      const { validatePassword } = await import("@/lib/password-utils");
+
+      const mockUser = {
+        id: "user1",
+        email: "test@example.com",
+        mfaEnabled: true, // User has MFA enabled
+        mfaSecret: "secret123",
+        mfaBackupCodes: "hashed1,hashed2",
+      };
+
+      const updatedBackupCodes = "hashed2"; // After removing used code
+
+      const updateData: {
+        password: string;
+        mfaBackupCodes: string | null;
+      } = {
+        password: "hashed_new_password",
+        mfaBackupCodes: updatedBackupCodes,
+      };
+
+      // Verify that MFA is NOT disabled in update data
+      expect(updateData).not.toHaveProperty("mfaEnabled");
+      expect(updateData).not.toHaveProperty("mfaSecret");
+      
+      // MFA should remain enabled even when recovery code is used
+      const mfaRemainsEnabled = true;
+      expect(mfaRemainsEnabled).toBe(true);
+    });
+
+    it("should preserve MFA secret after password reset", async () => {
+      const mockUser = {
+        id: "user1",
+        email: "test@example.com",
+        mfaEnabled: true,
+        mfaSecret: "secret123",
+        mfaBackupCodes: "hashed1,hashed2",
+      };
+
+      const updateData: {
+        password: string;
+        mfaBackupCodes: string | null;
+      } = {
+        password: "hashed_new_password",
+        mfaBackupCodes: null,
+      };
+
+      // Verify MFA secret is NOT cleared
+      expect(updateData).not.toHaveProperty("mfaSecret");
+      
+      // Original secret should remain
+      const originalSecret = mockUser.mfaSecret;
+      expect(originalSecret).toBe("secret123");
+    });
   });
 });

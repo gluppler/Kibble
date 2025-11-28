@@ -76,6 +76,10 @@ export async function POST(
  * DELETE /api/tasks/[id]/archive
  * 
  * Unarchives a task (restores it)
+ * 
+ * Validation:
+ * - Cannot restore tasks from archived boards
+ * - User must restore the board first before restoring tasks
  */
 export async function DELETE(
   request: Request,
@@ -91,6 +95,46 @@ export async function DELETE(
       return NextResponse.json(
         { error: permissionCheck.error },
         { status: permissionCheck.statusCode || 403 }
+      );
+    }
+
+    // Get task with board information to check if board is archived
+    const taskWithBoard = await db.task.findUnique({
+      where: { id },
+      include: {
+        column: {
+          include: {
+            board: {
+              select: {
+                id: true,
+                title: true,
+                archived: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!taskWithBoard) {
+      return NextResponse.json(
+        { error: "Task not found" },
+        { status: 404 }
+      );
+    }
+
+    const { board } = taskWithBoard.column;
+
+    // Check if the board is archived
+    if (board.archived) {
+      return NextResponse.json(
+        {
+          error: "Cannot restore task from archived board",
+          message: `This task belongs to an archived board "${board.title}". Please restore the board first before restoring this task.`,
+          boardId: board.id,
+          boardTitle: board.title,
+        },
+        { status: 400 }
       );
     }
 

@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, MoreVertical, Lock, Clock, Archive } from "lucide-react";
 import type { Task } from "@/lib/types";
 import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
+import { PriorityTag } from "@/components/priority-tag";
 
 /**
  * Props for KanbanTask component
@@ -73,7 +74,7 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
   };
 
   // Calculate due date status for visual indicators
-  const dueDateStatus = getDueDateStatus(task.dueDate || null);
+  const dueDateStatus = getDueDateStatus(task.dueDate);
   
   // Parse dueDate correctly - handle both string and Date objects
   const dueDate = task.dueDate 
@@ -235,6 +236,10 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
           </h3>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <PriorityTag 
+            priority={(task.priority as "normal" | "high") || "normal"} 
+            size="sm"
+          />
           {dueDateStatus.status && (
             <div
               className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold ${
@@ -314,11 +319,13 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
           )}
         </div>
       </div>
-      {task.description && (
-        <p className="text-xs text-black/60 dark:text-white/60 line-clamp-2 leading-relaxed mb-2 font-bold">
-          {task.description}
-        </p>
-      )}
+      <div className="mb-2">
+        {task.description && (
+          <p className="text-xs text-black/60 dark:text-white/60 line-clamp-2 leading-relaxed mb-1.5 font-bold">
+            {task.description}
+          </p>
+        )}
+      </div>
       {dueDate && (
         <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
           <Calendar size={14} className="text-black dark:text-white flex-shrink-0" style={{ width: '14px', height: '14px' }} />

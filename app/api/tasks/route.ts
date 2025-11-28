@@ -12,7 +12,7 @@ export const maxDuration = 30;
 export async function POST(request: Request) {
   try {
     const session = await getServerAuthSession();
-    const { title, description, columnId, dueDate } = await request.json();
+    const { title, description, columnId, dueDate, priority } = await request.json();
 
     // Check authentication
     const authCheck = checkAuthentication(session);
@@ -130,49 +130,32 @@ export async function POST(request: Request) {
     // Ensure order is always a valid number
     const finalOrder = Math.max(0, order);
 
-    // Prepare task data - handle undefined/null values properly
-    const taskData: {
-      title: string;
-      description?: string | null;
-      dueDate?: Date | null;
-      columnId: string;
-      order: number;
-      locked: boolean;
-      archived: boolean;
-      movedToDoneAt: null;
-      archivedAt: null;
-    } = {
+    // Validate priority if provided
+    const validPriorities = ["normal", "high"];
+    const taskPriority = priority && validPriorities.includes(priority) ? priority : "normal";
+
+    // Prepare task data
+    const taskData = {
       title: title.trim(),
       columnId,
       order: finalOrder,
       locked: false,
       archived: false,
-      movedToDoneAt: null,
-      archivedAt: null,
+      movedToDoneAt: null as Date | null,
+      archivedAt: null as Date | null,
+      priority: taskPriority,
+      description: null as string | null,
+      dueDate: null as Date | null,
     };
 
     // Handle description - convert empty string or undefined to null
-    // Always set description explicitly (either string or null)
-    if (description !== undefined && description !== null && typeof description === "string" && description.trim().length > 0) {
-      taskData.description = description.trim();
-    } else {
-      taskData.description = null;
-    }
+    const trimmedDescription = description && typeof description === "string" ? description.trim() : "";
+    taskData.description = trimmedDescription.length > 0 ? trimmedDescription : null;
 
     // Handle dueDate - convert to Date or null
-    if (dueDate !== undefined && dueDate !== null && dueDate !== "") {
-      try {
-        const parsedDate = new Date(dueDate);
-        if (!isNaN(parsedDate.getTime())) {
-          taskData.dueDate = parsedDate;
-        } else {
-          taskData.dueDate = null;
-        }
-      } catch {
-        taskData.dueDate = null;
-      }
-    } else {
-      taskData.dueDate = null;
+    if (dueDate) {
+      const parsedDate = new Date(dueDate);
+      taskData.dueDate = isNaN(parsedDate.getTime()) ? null : parsedDate;
     }
 
     const task = await db.task.create({

@@ -46,6 +46,8 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/contexts/theme-context";
+import { SearchBar, type SearchFilter } from "@/components/search-bar";
+import { searchBoards } from "@/lib/search-utils";
 import Link from "next/link";
 
 interface Board {
@@ -89,8 +91,19 @@ export function Sidebar({
   onBoardArchive,
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState(""); // For real-time filtering
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>("all");
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
+
+  /**
+   * Handle search query change - updates both local (real-time) and debounced query
+   */
+  const handleSearchChange = useCallback((query: string) => {
+    setLocalSearchQuery(query); // Update immediately for real-time filtering
+    setSearchQuery(query); // Also update for potential future use
+  }, []);
   
   // Refs for swipe gesture detection
   const touchStartX = useRef<number | null>(null);
@@ -450,7 +463,19 @@ export function Sidebar({
   }, [session]);
 
   /**
+   * Memoized filtered boards to prevent unnecessary recalculations
+   * This is separate from SidebarContent to avoid remounting the SearchBar
+   */
+  const filteredBoards = useMemo(() => {
+    return searchBoards(boards, {
+      query: localSearchQuery,
+      filter: searchFilter,
+    });
+  }, [boards, localSearchQuery, searchFilter]);
+
+  /**
    * Shared sidebar content component
+   * Note: SearchBar and filtered boards are rendered outside useMemo to prevent input focus loss
    */
   const SidebarContent = useMemo(() => {
     return ({ isMobile = false }: { isMobile?: boolean }) => (
@@ -484,51 +509,6 @@ export function Sidebar({
 
         {/* Profile Section (Mobile only) */}
         {isMobile && <ProfileSection />}
-
-        {/* Boards section */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2 className="text-xs sm:text-sm font-bold text-black dark:text-white uppercase tracking-wider">
-              Classes
-            </h2>
-            <button
-              onClick={() => {
-                onNewBoard();
-                if (isMobile) setIsOpen(false);
-              }}
-              className="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
-              title="Create new board"
-              aria-label="Create new board"
-              type="button"
-            >
-              <Plus className="text-black dark:text-white" size={16} aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="space-y-1.5">
-            {boards.length === 0 ? (
-              <div className="text-center py-6 px-2">
-                <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
-                  No boards yet
-                </p>
-                <button
-                  onClick={() => {
-                    onNewBoard();
-                    if (isMobile) setIsOpen(false);
-                  }}
-                  className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
-                  type="button"
-                >
-                  Create your first board
-                </button>
-              </div>
-            ) : (
-              boards.map((board) => (
-                <BoardItem key={board.id} board={board} />
-              ))
-            )}
-          </div>
-        </div>
 
         {/* Footer */}
         <div className="p-3 sm:p-4 border-t border-black/10 dark:border-white/10 space-y-1.5">
@@ -581,7 +561,7 @@ export function Sidebar({
         </div>
       </>
     );
-  }, [boards, onNewBoard, theme, toggleTheme, session, ProfileSection, BoardItem]);
+  }, [onNewBoard, theme, toggleTheme, session, ProfileSection, BoardItem, isOpen]);
 
   return (
     <>
@@ -610,6 +590,76 @@ export function Sidebar({
       {/* Desktop sidebar - Always visible on large screens */}
       <aside className="hidden lg:flex fixed left-0 top-0 h-screen-responsive w-64 xl:w-72 bg-white dark:bg-black border-r border-black/10 dark:border-white/10 z-40 flex-col flex-shrink-0">
         <SidebarContent isMobile={false} />
+        {/* Search Bar and Boards List - rendered outside SidebarContent to prevent remounting */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h2 className="text-xs sm:text-sm font-bold text-black dark:text-white uppercase tracking-wider">
+              Classes
+            </h2>
+            <button
+              onClick={() => {
+                onNewBoard();
+              }}
+              className="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
+              title="Create new board"
+              aria-label="Create new board"
+              type="button"
+            >
+              <Plus className="text-black dark:text-white" size={16} aria-hidden="true" />
+            </button>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="mb-3 sm:mb-4">
+            <SearchBar
+              searchQuery={localSearchQuery}
+              onSearchChange={handleSearchChange}
+              activeFilter={searchFilter}
+              onFilterChange={setSearchFilter}
+              showFilters={false}
+              placeholder="Search boards…"
+            />
+          </div>
+
+          {/* Filtered Boards List */}
+          <div className="space-y-1.5">
+            {filteredBoards.length === 0 ? (
+              <div className="text-center py-6 px-2">
+                {boards.length === 0 ? (
+                  // No boards exist at all
+                  <>
+                    <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                      No boards yet
+                    </p>
+                    <button
+                      onClick={() => {
+                        onNewBoard();
+                      }}
+                      className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
+                      type="button"
+                    >
+                      Create your first board
+                    </button>
+                  </>
+                ) : (
+                  // Boards exist but search didn't match
+                  <>
+                    <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                      No boards found
+                    </p>
+                    <p className="text-xs text-black/30 dark:text-white/30 font-bold">
+                      Try a different search term
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+              filteredBoards.map((board) => (
+                <BoardItem key={board.id} board={board} />
+              ))
+            )}
+          </div>
+        </div>
       </aside>
 
       {/* Mobile sidebar - Animated overlay with swipe support */}
@@ -655,6 +705,78 @@ export function Sidebar({
               onTouchEnd={handleTouchEnd}
             >
               <SidebarContent isMobile={true} />
+              {/* Search Bar and Boards List - rendered outside SidebarContent to prevent remounting */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xs sm:text-sm font-bold text-black dark:text-white uppercase tracking-wider">
+                    Classes
+                  </h2>
+                  <button
+                    onClick={() => {
+                      onNewBoard();
+                      setIsOpen(false);
+                    }}
+                    className="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
+                    title="Create new board"
+                    aria-label="Create new board"
+                    type="button"
+                  >
+                    <Plus className="text-black dark:text-white" size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                
+                {/* Search Bar */}
+                <div className="mb-3 sm:mb-4">
+                  <SearchBar
+                    searchQuery={localSearchQuery}
+                    onSearchChange={handleSearchChange}
+                    activeFilter={searchFilter}
+                    onFilterChange={setSearchFilter}
+                    showFilters={false}
+                    placeholder="Search boards…"
+                  />
+                </div>
+
+                {/* Filtered Boards List */}
+                <div className="space-y-1.5">
+                  {filteredBoards.length === 0 ? (
+                    <div className="text-center py-6 px-2">
+                      {boards.length === 0 ? (
+                        // No boards exist at all
+                        <>
+                          <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                            No boards yet
+                          </p>
+                          <button
+                            onClick={() => {
+                              onNewBoard();
+                              setIsOpen(false);
+                            }}
+                            className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
+                            type="button"
+                          >
+                            Create your first board
+                          </button>
+                        </>
+                      ) : (
+                        // Boards exist but search didn't match
+                        <>
+                          <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                            No boards found
+                          </p>
+                          <p className="text-xs text-black/30 dark:text-white/30 font-bold">
+                            Try a different search term
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    filteredBoards.map((board) => (
+                      <BoardItem key={board.id} board={board} />
+                    ))
+                  )}
+                </div>
+              </div>
             </motion.aside>
           </>
         )}

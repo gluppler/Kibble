@@ -219,7 +219,6 @@ body {
     
     .kanban-column-wrapper {
       /* Use flex-basis that allows wrapping when space is tight */
-      /* Fixed calculation prevents theme shifts */
       flex: 1 1 calc((100% - (3 * 0.75rem)) / 4) !important;
       min-width: 200px !important;
       max-width: calc((100% - (3 * 0.75rem)) / 4) !important;

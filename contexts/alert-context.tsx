@@ -8,6 +8,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import type { Alert } from "@/lib/alert-utils";
 import {
   checkTaskAlert,
@@ -19,6 +20,7 @@ import {
   clearNotificationTag,
 } from "@/lib/alert-utils";
 import { logError, logWarn } from "@/lib/logger";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 /**
  * Alert context type
@@ -30,6 +32,12 @@ interface AlertContextType {
   checkTaskForAlert: (task: any) => void;
   addCompletionAlert: (task: any) => void;
   clearAllAlerts: () => void;
+  preferencesLoaded: boolean; // Indicates if notification preferences have been loaded
+  notificationPreferences: {
+    notificationsEnabled: boolean;
+    dueDateAlertsEnabled: boolean;
+    completionAlertsEnabled: boolean;
+  };
 }
 
 /**
@@ -45,8 +53,19 @@ const AlertContext = createContext<AlertContextType | undefined>(undefined);
  * @param children - React children components
  */
 export function AlertProvider({ children }: { children: ReactNode }) {
+  const { data: session } = useSession();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<{
+    notificationsEnabled: boolean;
+    dueDateAlertsEnabled: boolean;
+    completionAlertsEnabled: boolean;
+  }>({
+    notificationsEnabled: true,
+    dueDateAlertsEnabled: true,
+    completionAlertsEnabled: true,
+  });
 
   /**
    * Initialize notification permission on mount
@@ -62,6 +81,86 @@ export function AlertProvider({ children }: { children: ReactNode }) {
       }
     }
   }, []);
+
+  /**
+   * Fetch user notification preferences
+   * 
+   * Loads user's notification preferences from the database to determine
+   * which alerts should be shown.
+   * 
+   * Critical: This must complete before any alert checks run to prevent
+   * alerts from being shown when preferences are disabled.
+   * 
+   * Also listens for storage events to refresh preferences when updated in settings.
+   */
+  const fetchPreferences = useCallback(() => {
+    if (session?.user?.id) {
+      setPreferencesLoaded(false); // Reset while fetching
+      deduplicatedFetch("/api/user/notifications")
+        .then((res) => {
+          if (res.ok) {
+            return res.json();
+          }
+          return null;
+        })
+        .then((data) => {
+          if (data) {
+            setNotificationPreferences({
+              notificationsEnabled: data.notificationsEnabled ?? true,
+              dueDateAlertsEnabled: data.dueDateAlertsEnabled ?? true,
+              completionAlertsEnabled: data.completionAlertsEnabled ?? true,
+            });
+          }
+          // Mark preferences as loaded even if data is null (use defaults)
+          setPreferencesLoaded(true);
+        })
+        .catch((err) => {
+          logWarn("Error fetching notification preferences:", err);
+          // Use defaults on error, but mark as loaded so checks can proceed
+          setPreferencesLoaded(true);
+        });
+    } else {
+      // No session - mark as loaded with defaults
+      setPreferencesLoaded(true);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    fetchPreferences();
+  }, [fetchPreferences]);
+
+  /**
+   * Listen for preference updates from settings page
+   * 
+   * When preferences are updated in settings, a storage event is emitted
+   * to notify other tabs/components to refresh their preferences.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'kibble:notifications:updated' && e.newValue) {
+        // Preferences were updated - refresh them
+        fetchPreferences();
+      }
+    };
+
+    const handleCustomEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.type === 'notifications:updated') {
+        // Preferences were updated - refresh them
+        fetchPreferences();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('kibble:notifications:updated', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('kibble:notifications:updated', handleCustomEvent);
+    };
+  }, [fetchPreferences]);
 
   /**
    * Adds a new alert to the system
@@ -94,6 +193,22 @@ export function AlertProvider({ children }: { children: ReactNode }) {
       return;
     }
     
+    // Check user notification preferences BEFORE adding alert to state
+    // This prevents the alert from being added to the UI if preferences are disabled
+    // Respect user's notification settings
+    const shouldShowAlert = 
+      notificationPreferences.notificationsEnabled &&
+      (alert.type === 'completion' 
+        ? notificationPreferences.completionAlertsEnabled 
+        : notificationPreferences.dueDateAlertsEnabled);
+
+    // If user has disabled this type of alert, don't add it to state at all
+    if (!shouldShowAlert) {
+      // User has disabled this type of alert - don't add it to the alert system
+      // This prevents both in-app alerts and browser notifications
+      return;
+    }
+
     setAlerts((prev) => {
       // Strict duplicate check: Use alert ID (which is now stable based on taskId + type)
       // This prevents duplicates more reliably than checking multiple fields
@@ -105,12 +220,13 @@ export function AlertProvider({ children }: { children: ReactNode }) {
       
       if (exists) return prev;
 
-      // Add new alert
+      // Add new alert to state (only if preferences allow it)
       const newAlerts = [...prev, alert];
 
       // Show browser notification if permission granted
       // Only show if in secure context and permission is granted
       // Don't show notifications on auth pages to prevent duplicate tab opening
+      // Note: shouldShowAlert is already checked above, so we know preferences allow this alert
       if (
         notificationPermission === 'granted' && 
         typeof window !== 'undefined' && 
@@ -146,7 +262,7 @@ export function AlertProvider({ children }: { children: ReactNode }) {
 
       return newAlerts;
     });
-  }, [notificationPermission]);
+  }, [notificationPermission, notificationPreferences]);
 
   /**
    * Closes an alert by ID
@@ -214,6 +330,7 @@ export function AlertProvider({ children }: { children: ReactNode }) {
     
     try {
       const alert = createCompletionAlert(task);
+      // addAlert will check notification preferences internally
       addAlert(alert);
     } catch (error) {
       logError("[ALERT CONTEXT] Failed to create completion alert:", error);
@@ -258,6 +375,8 @@ export function AlertProvider({ children }: { children: ReactNode }) {
         checkTaskForAlert,
         addCompletionAlert,
         clearAllAlerts,
+        preferencesLoaded,
+        notificationPreferences,
       }}
     >
       {children}

@@ -47,7 +47,7 @@ export async function GET() {
           include: {
             tasks: {
               where: {
-                archived: false, // Include non-archived tasks in archived boards
+                archived: true, // Include archived tasks in archived boards
               },
               orderBy: { order: "asc" },
             },

@@ -3,8 +3,33 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Kibble - Kanban Board",
-  description: "A minimalist drag-and-drop kanban board for organizing coursework and managing academic deadlines",
+  title: {
+    default: "Kibble - Task Management",
+    template: "%s | Kibble",
+  },
+  description: "A modern, full-stack task management application with class-based boards, intelligent alerts, and a beautiful Kanban interface",
+  applicationName: "Kibble",
+  keywords: ["task management", "kanban", "productivity", "education", "boards", "tasks"],
+  authors: [{ name: "Kibble" }],
+  creator: "Kibble",
+  publisher: "Kibble",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: process.env.NEXT_PUBLIC_APP_URL ? new URL(process.env.NEXT_PUBLIC_APP_URL) : undefined,
+  openGraph: {
+    type: "website",
+    siteName: "Kibble",
+    title: "Kibble - Task Management",
+    description: "A modern, full-stack task management application with class-based boards, intelligent alerts, and a beautiful Kanban interface",
+  },
+  twitter: {
+    card: "summary",
+    title: "Kibble - Task Management",
+    description: "A modern, full-stack task management application with class-based boards, intelligent alerts, and a beautiful Kanban interface",
+  },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },

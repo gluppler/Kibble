@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { Calendar, AlertCircle, Edit2, Trash2, Lock, Archive } from "lucide-react";
 import type { Task, Board, Column } from "@/lib/types";
 import { formatDateToDDMMYYYY, getDueDateStatus } from "@/lib/date-formatters";
+import { PriorityTag } from "@/components/priority-tag";
 
 /**
  * Props for BoardListView component
@@ -51,7 +52,7 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
       ) : (
         <div className="space-y-2 sm:space-y-3">
           {allTasks.map((task) => {
-            const dueDateStatus = getDueDateStatus(task.dueDate || null);
+            const dueDateStatus = getDueDateStatus(task.dueDate);
             const dueDate = task.dueDate
               ? (task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate))
               : null;
@@ -82,6 +83,12 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
                       }`}>
                         {task.title}
                       </h3>
+                      <div className="mt-1.5 mb-1">
+                        <PriorityTag 
+                          priority={(task.priority as "normal" | "high") || "normal"} 
+                          size="sm"
+                        />
+                      </div>
                       {task.description && (
                         <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mt-1 line-clamp-2 font-bold">
                           {task.description}

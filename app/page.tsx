@@ -29,6 +29,8 @@ import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialo
 import { NotificationSystem } from "@/components/notification-system";
 import { logError } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { SearchBar, type SearchFilter } from "@/components/search-bar";
+import { searchBoards } from "@/lib/search-utils";
 
 /**
  * Board interface - minimal board representation for list views
@@ -74,6 +76,9 @@ export default function Home() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
   const [deletingBoard, setDeletingBoard] = useState<Board | null>(null);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>("all");
   
   // Refs to track loading state and prevent duplicate loads
   const hasLoadedBoards = useRef(false);
@@ -141,10 +146,6 @@ export default function Home() {
    * 3. Creates default board if no boards exist
    * 4. Persists selected board to localStorage
    * 
-   * Fixed: Removed boards.length from dependencies to prevent infinite loops.
-   * Fixed: Added proper error handling and validation.
-   * Fixed: Added ref tracking to prevent duplicate loads.
-   * Fixed: Added timeout protection to prevent stuck loading states.
    */
   const loadBoards = useCallback(async () => {
     // Prevent duplicate concurrent loads
@@ -189,7 +190,7 @@ export default function Home() {
       
       // Read response body
       const data = await res.json();
-      const boardsList = Array.isArray(data.boards) ? data.boards : [];
+      const boardsList = data.boards ?? [];
       
       // Update boards state
       setBoards(boardsList);
@@ -260,10 +261,6 @@ export default function Home() {
    * This effect ensures that when users navigate back to the main page,
    * the boards state is reset and ready to reload.
    * 
-   * Fixed: Detects navigation to main page and resets loading state.
-   * Fixed: Handles both component remount and navigation scenarios.
-   * Fixed: Removed boards.length from dependencies to prevent infinite loops.
-   * Fixed: Always reset refs when navigating to main page to ensure reload.
    */
   useEffect(() => {
     // When on main page (pathname === "/") and authenticated
@@ -288,11 +285,6 @@ export default function Home() {
    * Redirects unauthenticated users to sign-in page.
    * Loads boards when user is authenticated.
    * 
-   * Fixed: Reset ref on mount/navigation to ensure boards load when returning to page.
-   * Fixed: Load boards whenever authenticated and boards array is empty, regardless of ref state.
-   * Fixed: Proper dependency array to prevent infinite loops.
-   * Fixed: Also checks pathname to ensure we're on the main page before loading.
-   * Fixed: Removed loading from dependencies to prevent blocking.
    */
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -312,7 +304,65 @@ export default function Home() {
         loadBoards();
       }
     }
-  }, [status, router, loadBoards, pathname, boards.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, status]);
+
+  /**
+   * Listen for archive events to refresh boards list
+   * 
+   * When boards are restored from archive page, this will automatically
+   * refresh the boards list on the main page without requiring a page refresh.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined" || pathname !== "/") {
+      return;
+    }
+
+    /**
+     * Handle storage events (triggered when restoring from other tabs/pages)
+     */
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === "kibble:archive:updated" && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          // Refresh boards list when boards are restored
+          if (data.type === "boards" || data.type === "both") {
+            hasLoadedBoards.current = false;
+            loadBoards();
+          }
+        } catch (err) {
+          // Ignore parsing errors
+        }
+      }
+    };
+
+    /**
+     * Handle custom events (triggered when restoring from same tab)
+     */
+    const handleCustomEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        const data = customEvent.detail;
+        // Refresh boards list when boards are restored
+        if (data.type === "boards" || data.type === "both") {
+          hasLoadedBoards.current = false;
+          loadBoards();
+        }
+      }
+    };
+
+    // Listen for storage events (cross-tab communication)
+    window.addEventListener("storage", handleStorageEvent);
+    // Listen for custom events (same-tab communication)
+    window.addEventListener("kibble:archive:updated", handleCustomEvent);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("storage", handleStorageEvent);
+      window.removeEventListener("kibble:archive:updated", handleCustomEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   /**
    * Handles board creation
@@ -321,7 +371,6 @@ export default function Home() {
    * 
    * Creates a new board, refetches the boards list, and sets the new board as active.
    * 
-   * Fixed: Ensures boards are loaded before and after creation to handle navigation edge cases.
    */
   const handleCreateBoard = async (title: string) => {
     try {

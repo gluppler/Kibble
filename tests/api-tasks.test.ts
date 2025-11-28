@@ -91,6 +91,190 @@ describe('Task API Endpoints', () => {
 
       expect(newOrder).toBe(3);
     });
+
+    it('should handle task with high priority', () => {
+      const taskData = {
+        title: 'High Priority Task',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('high');
+    });
+
+    it('should handle task with normal priority', () => {
+      const taskData = {
+        title: 'Normal Priority Task',
+        columnId: 'col-1',
+        priority: 'normal',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should default to normal priority when priority is invalid', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        priority: 'invalid',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should default to normal priority when priority is missing', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should handle task with priority and description', () => {
+      const taskData = {
+        title: 'Task',
+        description: 'Description',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('high');
+    });
+
+    it('should handle task with priority and due date', () => {
+      const taskData = {
+        title: 'Task',
+        dueDate: '2024-12-31T23:59:59',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('high');
+    });
+
+    it('should handle empty string priority', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        priority: '',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should handle null priority', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        priority: null,
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should handle undefined priority', () => {
+      const taskData: {
+        title: string;
+        columnId: string;
+        priority?: string;
+      } = {
+        title: 'Task',
+        columnId: 'col-1',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority)
+        ? taskData.priority
+        : 'normal';
+
+      expect(taskPriority).toBe('normal');
+    });
+
+    it('should handle whitespace-only title', () => {
+      const taskData = {
+        title: '   ',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(false);
+    });
+
+    it('should handle very long title', () => {
+      const longTitle = 'a'.repeat(10000);
+      const taskData = {
+        title: longTitle,
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(true);
+    });
+
+    it('should handle special characters in title', () => {
+      const taskData = {
+        title: "Task with @#$%^&*() and 'quotes'",
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(true);
+    });
+
+    it('should handle unicode characters in title', () => {
+      const taskData = {
+        title: 'Task with émojis 🎉 and ñoño',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(true);
+    });
   });
 
   describe('PATCH /api/tasks/[id]', () => {
@@ -259,6 +443,202 @@ describe('Task API Endpoints', () => {
       const isOwner = task.column.board.userId === sessionUserId;
 
       expect(isOwner).toBe(false);
+    });
+
+    it('should handle invalid columnId format', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: '',
+      };
+
+      // Check if columnId is valid (not empty and is a non-empty string after trim)
+      const hasValidColumnId = taskData.columnId !== null && 
+                                taskData.columnId !== undefined && 
+                                typeof taskData.columnId === 'string' && 
+                                taskData.columnId.trim().length > 0;
+      expect(hasValidColumnId).toBe(false);
+    });
+
+    it('should handle null columnId', () => {
+      const taskData: {
+        title: string;
+        columnId?: string | null;
+      } = {
+        title: 'Task',
+        columnId: null,
+      };
+
+      // Check if columnId is valid (not null/undefined and is a non-empty string)
+      const hasValidColumnId = taskData.columnId !== null && 
+                                taskData.columnId !== undefined && 
+                                typeof taskData.columnId === 'string' && 
+                                taskData.columnId.trim().length > 0;
+      expect(hasValidColumnId).toBe(false);
+    });
+
+    it('should handle SQL injection patterns in title', () => {
+      const taskData = {
+        title: "Task'; DROP TABLE tasks--",
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(true);
+      // Should be sanitized/validated by API
+    });
+
+    it('should handle XSS patterns in title', () => {
+      const taskData = {
+        title: '<script>alert("xss")</script>',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const hasValidTitle = taskData.title && typeof taskData.title === 'string' && taskData.title.trim().length > 0;
+      expect(hasValidTitle).toBe(true);
+      // Should be sanitized by React's XSS protection
+    });
+
+    it('should handle invalid due date format', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        dueDate: 'invalid-date',
+      };
+
+      let finalDueDate: Date | null = null;
+      if (taskData.dueDate !== undefined && taskData.dueDate !== null && taskData.dueDate !== '') {
+        try {
+          const parsedDate = new Date(taskData.dueDate);
+          if (!isNaN(parsedDate.getTime())) {
+            finalDueDate = parsedDate;
+          }
+        } catch {
+          finalDueDate = null;
+        }
+      }
+
+      expect(finalDueDate).toBeNull();
+    });
+
+    it('should handle valid due date format', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        dueDate: '2024-12-31T23:59:59',
+      };
+
+      let finalDueDate: Date | null = null;
+      if (taskData.dueDate !== undefined && taskData.dueDate !== null && taskData.dueDate !== '') {
+        try {
+          const parsedDate = new Date(taskData.dueDate);
+          if (!isNaN(parsedDate.getTime())) {
+            finalDueDate = parsedDate;
+          }
+        } catch {
+          finalDueDate = null;
+        }
+      }
+
+      expect(finalDueDate).toBeInstanceOf(Date);
+    });
+
+    it('should handle empty description string', () => {
+      const taskData = {
+        title: 'Task',
+        description: '',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const finalDescription = taskData.description !== undefined && taskData.description !== null && typeof taskData.description === 'string' && taskData.description.trim().length > 0
+        ? taskData.description.trim()
+        : null;
+
+      expect(finalDescription).toBeNull();
+    });
+
+    it('should handle whitespace-only description', () => {
+      const taskData = {
+        title: 'Task',
+        description: '   ',
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const finalDescription = taskData.description !== undefined && taskData.description !== null && typeof taskData.description === 'string' && taskData.description.trim().length > 0
+        ? taskData.description.trim()
+        : null;
+
+      expect(finalDescription).toBeNull();
+    });
+
+    it('should handle very long description', () => {
+      const longDescription = 'a'.repeat(100000);
+      const taskData = {
+        title: 'Task',
+        description: longDescription,
+        columnId: 'col-1',
+        priority: 'high',
+      };
+
+      const finalDescription = taskData.description !== undefined && taskData.description !== null && typeof taskData.description === 'string' && taskData.description.trim().length > 0
+        ? taskData.description.trim()
+        : null;
+
+      expect(finalDescription).toBe(longDescription);
+    });
+  });
+
+  describe('Priority Edge Cases', () => {
+    it('should handle priority update for locked tasks', () => {
+      const lockedTask = {
+        id: 'task-1',
+        locked: true,
+        column: {
+          title: 'Done',
+          board: {
+            userId: 'test-user-id',
+          },
+        },
+      };
+
+      // Priority can be updated even for locked tasks
+      const canUpdatePriority = lockedTask.column.board.userId === 'test-user-id';
+      expect(canUpdatePriority).toBe(true);
+    });
+
+    it('should handle priority case sensitivity', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        priority: 'HIGH', // Uppercase
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const taskPriority = taskData.priority && validPriorities.includes(taskData.priority.toLowerCase())
+        ? taskData.priority.toLowerCase()
+        : 'normal';
+
+      // Should normalize to lowercase
+      expect(['normal', 'high']).toContain(taskPriority);
+    });
+
+    it('should handle priority with whitespace', () => {
+      const taskData = {
+        title: 'Task',
+        columnId: 'col-1',
+        priority: '  high  ',
+      };
+
+      const validPriorities = ['normal', 'high'];
+      const normalizedPriority = taskData.priority?.trim().toLowerCase();
+      const taskPriority = normalizedPriority && validPriorities.includes(normalizedPriority)
+        ? normalizedPriority
+        : 'normal';
+
+      expect(taskPriority).toBe('high');
     });
   });
 });

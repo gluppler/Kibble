@@ -25,7 +25,14 @@ import type { Alert } from "@/lib/alert-utils";
 
 export function NotificationSystem() {
   const { data: session } = useSession();
-  const { alerts, closeAlert, clearAllAlerts, checkTaskForAlert } = useAlerts();
+  const { 
+    alerts, 
+    closeAlert, 
+    clearAllAlerts, 
+    checkTaskForAlert,
+    preferencesLoaded,
+    notificationPreferences,
+  } = useAlerts();
   const [isOpen, setIsOpen] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
@@ -58,7 +65,7 @@ export function NotificationSystem() {
 
     const checkDueDates = async () => {
       try {
-        // Optimized: Fetch all tasks with due dates in a single API call
+        // Fetch all tasks with due dates in a single API call
         // This avoids N+1 queries (fetching each board individually)
         // Uses request deduplication to prevent duplicate concurrent requests
         const tasksRes = await deduplicatedFetch("/api/tasks/alerts");
@@ -106,15 +113,25 @@ export function NotificationSystem() {
       }
     };
 
-    // Only check if session is authenticated
-    if (session?.user?.id) {
-      checkDueDates();
-      // Check every 5 minutes (reduced from immediate + interval to just interval)
-      const interval = setInterval(checkDueDates, 5 * 60 * 1000);
+    // Only check if session is authenticated AND preferences are loaded
+    // Critical: Wait for preferences to load before checking alerts
+    // This prevents alerts from being shown when preferences are disabled
+    if (session?.user?.id && preferencesLoaded) {
+      // Only check if notifications are enabled
+      if (notificationPreferences.notificationsEnabled && notificationPreferences.dueDateAlertsEnabled) {
+        checkDueDates();
+        // Check every 5 minutes (reduced from immediate + interval to just interval)
+        const interval = setInterval(() => {
+          // Re-check preferences on each interval to respect real-time changes
+          if (notificationPreferences.notificationsEnabled && notificationPreferences.dueDateAlertsEnabled) {
+            checkDueDates();
+          }
+        }, 5 * 60 * 1000);
 
-      return () => clearInterval(interval);
+        return () => clearInterval(interval);
+      }
     }
-  }, [session, checkTaskForAlert]);
+  }, [session, checkTaskForAlert, preferencesLoaded, notificationPreferences.notificationsEnabled, notificationPreferences.dueDateAlertsEnabled]);
 
   /**
    * Show notification panel when new alerts arrive

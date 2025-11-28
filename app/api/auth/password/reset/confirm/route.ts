@@ -7,9 +7,12 @@
  * - Validates email, TOTP/recovery code, and new password
  * - Prevents password reset if no MFA/recovery codes exist
  * - Revokes all sessions after reset
- * - Invalidates MFA if enabled (requires re-setup)
+ * - Preserves MFA settings (MFA remains enabled after password reset)
  * - Requires new password to meet requirements (strength and uniqueness)
  * - Rate limiting should be implemented at infrastructure level
+ * 
+ * IMPORTANT: MFA is NOT disabled during password reset. Since password reset
+ * requires MFA to be enabled, it makes sense to keep MFA enabled after reset.
  */
 
 import { NextResponse } from "next/server";
@@ -205,19 +208,23 @@ export async function POST(request: Request) {
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Update password, invalidate MFA, update backup codes, and delete all sessions
+    // Update password, update backup codes, and delete all sessions
+    // IMPORTANT: MFA remains enabled after password reset since password reset requires MFA
+    // This ensures users don't lose their MFA protection after resetting their password
     await db.$transaction(async (tx) => {
-      // Update password and MFA settings
+      // Update password and backup codes (keep MFA enabled)
+      const updateData: {
+        password: string;
+        mfaBackupCodes: string | null;
+      } = {
+        password: hashedPassword,
+        // Update backup codes if recovery code was used
+        mfaBackupCodes: updatedBackupCodes,
+      };
+
       await tx.user.update({
         where: { id: user.id },
-        data: {
-          password: hashedPassword,
-          // Invalidate MFA (security: require re-setup after password reset)
-          mfaEnabled: false,
-          mfaSecret: null,
-          // Update backup codes if recovery code was used
-          mfaBackupCodes: updatedBackupCodes,
-        },
+        data: updateData,
       });
 
       // Delete all user sessions (force re-login)

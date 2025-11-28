@@ -29,6 +29,7 @@ export function EditTaskDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState<"normal" | "high">("normal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,6 +44,7 @@ export function EditTaskDialog({
       } else {
         setDueDate("");
       }
+      setPriority((task.priority as "normal" | "high") || "normal");
       setError("");
     }
   }, [task]);
@@ -58,13 +60,17 @@ export function EditTaskDialog({
     setError("");
 
     try {
+      const trimmedTitle = title.trim();
+      const trimmedDescription = description.trim();
+      
       const response = await deduplicatedFetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          dueDate: dueDate || null,
+          title: trimmedTitle,
+          description: trimmedDescription || null,
+          dueDate: dueDate ?? null,
+          priority: priority,
         }),
       });
 
@@ -237,6 +243,25 @@ export function EditTaskDialog({
                   <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
                     Format: {getDateInputFormatHint()}
                   </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="edit-priority"
+                    className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
+                  >
+                    Priority
+                  </label>
+                  <select
+                    id="edit-priority"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as "normal" | "high")}
+                    className="w-full px-3 py-2 sm:py-2.5 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent text-xs sm:text-sm font-bold transition-all [color-scheme:light] dark:[color-scheme:dark]"
+                    aria-label="Task priority"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="high">High Priority</option>
+                  </select>
                 </div>
 
                 <div className="flex gap-2 sm:gap-3 pt-2">

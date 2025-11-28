@@ -27,7 +27,11 @@ import {
   CheckSquare,
   Calendar,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
+import { PriorityTag } from "@/components/priority-tag";
+import { SearchBar, type SearchFilter } from "@/components/search-bar";
+import { searchArchivedTasks, searchArchivedBoards } from "@/lib/search-utils";
 import Link from "next/link";
 
 interface ArchivedBoard {
@@ -49,6 +53,7 @@ interface ArchivedTask {
   dueDate: string | null;
   archivedAt: string | null;
   createdAt: string;
+  priority?: string;
   column: {
     id: string;
     title: string;
@@ -70,6 +75,10 @@ export default function ArchivePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<{ type: "task" | "board"; id: string; title: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>("all");
   
   // Refs to prevent duplicate API calls
   const isFetchingRef = useRef(false);
@@ -123,8 +132,8 @@ export default function ArchivePage() {
         const boardsData = await boardsRes.json();
         const tasksData = await tasksRes.json();
         
-        setBoards(boardsData.boards || []);
-        setTasks(tasksData.tasks || []);
+        setBoards(boardsData.boards ?? []);
+        setTasks(tasksData.tasks ?? []);
         hasInitialLoadRef.current = true;
       } else {
         // Normal fetch based on active tab
@@ -132,12 +141,12 @@ export default function ArchivePage() {
           const res = await deduplicatedFetch("/api/archive/boards");
           if (!res.ok) throw new Error("Failed to fetch archived boards");
           const data = await res.json();
-          setBoards(data.boards || []);
+          setBoards(data.boards ?? []);
         } else {
           const res = await deduplicatedFetch("/api/archive/tasks");
           if (!res.ok) throw new Error("Failed to fetch archived tasks");
           const data = await res.json();
-          setTasks(data.tasks || []);
+          setTasks(data.tasks ?? []);
         }
       }
     } catch (err) {
@@ -279,7 +288,13 @@ export default function ArchivePage() {
           const data = JSON.parse(e.newValue);
           // Only refresh if the event is for the current tab and initial load is complete
           if ((data.type === activeTab || data.type === "both") && hasInitialLoadRef.current) {
-            fetchArchivedItems(true); // Silent refresh
+            // If event type is "both", fetch both boards and tasks
+            // Otherwise, fetch based on active tab
+            if (data.type === "both") {
+              fetchArchivedItems(true, true); // Silent refresh, fetch both
+            } else {
+              fetchArchivedItems(true); // Silent refresh, fetch based on active tab
+            }
           }
         } catch (err) {
           logWarn("Error parsing storage event:", err);
@@ -297,7 +312,13 @@ export default function ArchivePage() {
         const data = customEvent.detail;
         // Only refresh if the event is for the current tab and initial load is complete
         if ((data.type === activeTab || data.type === "both") && hasInitialLoadRef.current) {
-          fetchArchivedItems(true); // Silent refresh
+          // If event type is "both", fetch both boards and tasks
+          // Otherwise, fetch based on active tab
+          if (data.type === "both") {
+            fetchArchivedItems(true, true); // Silent refresh, fetch both
+          } else {
+            fetchArchivedItems(true); // Silent refresh, fetch based on active tab
+          }
         }
       }
     };
@@ -345,13 +366,15 @@ export default function ArchivePage() {
       });
       if (!res.ok) throw new Error("Failed to restore board");
       
-      // Emit archive event for real-time updates
+      // Emit archive event for real-time updates (both boards and tasks are restored)
       if (typeof window !== "undefined") {
         const { emitArchiveEvent } = await import("@/lib/archive-events");
-        emitArchiveEvent("boards");
+        emitArchiveEvent("both"); // Emit "both" since board and tasks are restored
       }
       
-      await fetchArchivedItems();
+      // Fetch both boards and tasks since restoring a board also restores its tasks
+      // This ensures both tabs are updated immediately without requiring a refresh
+      await fetchArchivedItems(false, true);
     } catch (err) {
       logError("Error restoring board:", err);
       setError("Failed to restore board");
@@ -360,13 +383,71 @@ export default function ArchivePage() {
     }
   };
 
+  /**
+   * Permanently deletes an archived board.
+   * 
+   * @param boardId - ID of the board to delete
+   * 
+   * Security:
+   * - Requires confirmation dialog
+   * - Uses DELETE endpoint with permission checks
+   * - Cascade deletes all columns and tasks
+   * - Removes board from UI immediately after successful deletion
+   */
+  const handleDeleteBoard = async (boardId: string) => {
+    if (!showDeleteDialog || showDeleteDialog.id !== boardId) return;
+    
+    setDeleting(boardId);
+    setShowDeleteDialog(null);
+    
+    try {
+      const res = await deduplicatedFetch(`/api/boards/${boardId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete board");
+      
+      // Optimistically remove board from UI
+      setBoards((prev) => prev.filter((b) => b.id !== boardId));
+      
+      // Emit archive event for real-time updates (both boards and tasks are deleted)
+      if (typeof window !== "undefined") {
+        const { emitArchiveEvent } = await import("@/lib/archive-events");
+        emitArchiveEvent("both"); // Emit "both" since board and tasks are deleted
+      }
+      
+      // Fetch both boards and tasks since deleting a board also deletes its tasks
+      // This ensures both tabs are updated immediately
+      await fetchArchivedItems(true, true);
+    } catch (err) {
+      logError("Error deleting board:", err);
+      setError("Failed to delete board");
+      // Revert optimistic update on error - fetch both to restore correct state
+      await fetchArchivedItems(false, true);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const handleRestoreTask = async (taskId: string) => {
     setRestoring(taskId);
+    setError(""); // Clear any previous errors
     try {
       const res = await deduplicatedFetch(`/api/tasks/${taskId}/archive`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Failed to restore task");
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        
+        // Check if error is due to archived board (400 status with message)
+        if (res.status === 400 && errorData.message) {
+          setError(errorData.message);
+          return;
+        }
+        
+        setError(errorData.error || "Failed to restore task");
+        return;
+      }
       
       // Emit archive event for real-time updates
       if (typeof window !== "undefined") {
@@ -377,9 +458,52 @@ export default function ArchivePage() {
       await fetchArchivedItems();
     } catch (err) {
       logError("Error restoring task:", err);
-      setError("Failed to restore task");
+      setError(err instanceof Error ? err.message : "Failed to restore task");
     } finally {
       setRestoring(null);
+    }
+  };
+
+  /**
+   * Permanently deletes an archived task.
+   * 
+   * @param taskId - ID of the task to delete
+   * 
+   * Security:
+   * - Requires confirmation dialog
+   * - Uses DELETE endpoint with permission checks
+   * - Removes task from UI immediately after successful deletion
+   */
+  const handleDeleteTask = async (taskId: string) => {
+    if (!showDeleteDialog || showDeleteDialog.id !== taskId) return;
+    
+    setDeleting(taskId);
+    setShowDeleteDialog(null);
+    
+    try {
+      const res = await deduplicatedFetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete task");
+      
+      // Optimistically remove task from UI
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      
+      // Emit archive event for real-time updates
+      if (typeof window !== "undefined") {
+        const { emitArchiveEvent } = await import("@/lib/archive-events");
+        emitArchiveEvent("tasks");
+      }
+      
+      // Refresh to ensure consistency
+      await fetchArchivedItems(true);
+    } catch (err) {
+      logError("Error deleting task:", err);
+      setError("Failed to delete task");
+      // Revert optimistic update on error
+      await fetchArchivedItems();
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -507,6 +631,18 @@ export default function ArchivePage() {
           </div>
         )}
 
+        {/* Search Bar */}
+        <div className="mb-4 sm:mb-6">
+          <SearchBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeFilter={searchFilter}
+            onFilterChange={setSearchFilter}
+            showFilters={true}
+            placeholder="Search archived tasks or boards…"
+          />
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-2 mb-4 sm:mb-6 border-b border-black/10 dark:border-white/10">
           <button
@@ -570,19 +706,28 @@ export default function ArchivePage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {tasks.length === 0 ? (
+              {(() => {
+                // Filter tasks based on search and filter
+                // Note: "tasks" filter removed since we're already on Tasks tab
+                const filteredTasks = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")
+                  ? searchArchivedTasks(tasks, { query: searchQuery, filter: searchFilter })
+                  : [];
+                
+                return filteredTasks.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <Archive className="mx-auto mb-4 text-black/20 dark:text-white/20" size={48} />
                   <p className="text-sm font-bold text-black/60 dark:text-white/60 mb-2">
                     No archived tasks
                   </p>
                   <p className="text-xs text-black/40 dark:text-white/40 font-bold">
-                    Tasks you archive will appear here
+                    {searchQuery || searchFilter !== "all" 
+                      ? "No matching tasks found" 
+                      : "Tasks you archive will appear here"}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {tasks.map((task) => (
+                  {filteredTasks.map((task) => (
                     <div
                       key={task.id}
                       className="bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-4 sm:p-6"
@@ -592,6 +737,12 @@ export default function ArchivePage() {
                           <h3 className="text-sm sm:text-base font-bold text-black dark:text-white mb-1 truncate">
                             {task.title}
                           </h3>
+                          <div className="mb-1.5">
+                            <PriorityTag 
+                              priority={(task.priority as "normal" | "high") || "normal"} 
+                              size="sm"
+                            />
+                          </div>
                           {task.description && (
                             <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mb-2 font-bold line-clamp-2">
                               {task.description}
@@ -619,28 +770,49 @@ export default function ArchivePage() {
                             )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleRestoreTask(task.id)}
-                          disabled={restoring === task.id}
-                          className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2 flex-shrink-0"
-                        >
-                          {restoring === task.id ? (
-                            <>
-                              <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
-                              Restoring...
-                            </>
-                          ) : (
-                            <>
-                              <RotateCcw size={14} />
-                              Restore
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => handleRestoreTask(task.id)}
+                            disabled={restoring === task.id || deleting === task.id}
+                            className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2"
+                          >
+                            {restoring === task.id ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                Restoring...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw size={14} />
+                                Restore
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteDialog({ type: "task", id: task.id, title: task.title })}
+                            disabled={restoring === task.id || deleting === task.id}
+                            className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2"
+                            aria-label="Delete task permanently"
+                          >
+                            {deleting === task.id ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 size={14} />
+                                Delete
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
+              );
+              })()}
             </motion.div>
           ) : (
             <motion.div
@@ -650,19 +822,28 @@ export default function ArchivePage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {boards.length === 0 ? (
+              {(() => {
+                // Filter boards based on search and filter
+                // Note: "boards" filter removed since we're already on Boards tab
+                const filteredBoards = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")
+                  ? searchArchivedBoards(boards, { query: searchQuery, filter: searchFilter })
+                  : [];
+                
+                return filteredBoards.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <Archive className="mx-auto mb-4 text-black/20 dark:text-white/20" size={48} />
                   <p className="text-sm font-bold text-black/60 dark:text-white/60 mb-2">
                     No archived boards
                   </p>
                   <p className="text-xs text-black/40 dark:text-white/40 font-bold">
-                    Boards you archive will appear here
+                    {searchQuery || searchFilter !== "all" 
+                      ? "No matching boards found" 
+                      : "Boards you archive will appear here"}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {boards.map((board) => {
+                  {filteredBoards.map((board) => {
                     const taskCount = board.columns.reduce(
                       (sum, col) => sum + col.tasks.length,
                       0
@@ -691,29 +872,102 @@ export default function ArchivePage() {
                               )}
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleRestoreBoard(board.id)}
-                            disabled={restoring === board.id}
-                            className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2 flex-shrink-0"
-                          >
-                            {restoring === board.id ? (
-                              <>
-                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
-                                Restoring...
-                              </>
-                            ) : (
-                              <>
-                                <RotateCcw size={14} />
-                                Restore
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleRestoreBoard(board.id)}
+                              disabled={restoring === board.id || deleting === board.id}
+                              className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2"
+                            >
+                              {restoring === board.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                  Restoring...
+                                </>
+                              ) : (
+                                <>
+                                  <RotateCcw size={14} />
+                                  Restore
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteDialog({ type: "board", id: board.id, title: board.title })}
+                              disabled={restoring === board.id || deleting === board.id}
+                              className="px-3 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold flex items-center gap-2"
+                              aria-label="Delete board permanently"
+                            >
+                              {deleting === board.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 size={14} />
+                                  Delete
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              )}
+              );
+              })()}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Confirmation Dialog */}
+        <AnimatePresence>
+          {showDeleteDialog && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 dark:bg-white/20 z-50 flex items-center justify-center p-4"
+              onClick={() => setShowDeleteDialog(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-black rounded-lg border border-black/20 dark:border-white/20 p-4 sm:p-6 max-w-md w-full"
+              >
+                <h3 className="text-lg font-bold text-black dark:text-white mb-2">
+                  Delete {showDeleteDialog.type === "task" ? "Task" : "Board"}?
+                </h3>
+                <p className="text-sm text-black/60 dark:text-white/60 mb-4 font-bold">
+                  Are you sure you want to permanently delete "{showDeleteDialog.title}"? This action cannot be undone.
+                  {showDeleteDialog.type === "board" && " All tasks in this board will also be deleted."}
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setShowDeleteDialog(null)}
+                    className="px-4 py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-sm font-bold"
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (showDeleteDialog.type === "task") {
+                        handleDeleteTask(showDeleteDialog.id);
+                      } else {
+                        handleDeleteBoard(showDeleteDialog.id);
+                      }
+                    }}
+                    className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-sm font-bold flex items-center gap-2"
+                    type="button"
+                  >
+                    <Trash2 size={14} />
+                    Delete Permanently
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

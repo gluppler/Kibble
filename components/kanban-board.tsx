@@ -43,6 +43,8 @@ import { BoardListView } from "./board-list-view";
 import { useAlerts } from "@/contexts/alert-context";
 import { logError } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { SearchBar, type SearchFilter } from "@/components/search-bar";
+import { searchTasks } from "@/lib/search-utils";
 
 /**
  * Props for KanbanBoard component
@@ -60,22 +62,20 @@ interface KanbanBoardProps {
  * 
  * This function searches through all columns to locate a specific task,
  * returning both the task and its containing column for drag-and-drop operations.
- * 
- * Fixed: Added null checks to prevent crashes with invalid board data.
  */
 function findTaskInBoard(
   board: Board,
   taskId: string
 ): { task: Task; column: Column & { tasks: Task[] } } | null {
-  if (!board || !board.columns || !Array.isArray(board.columns)) {
+  if (!board?.columns || !Array.isArray(board.columns)) {
     return null;
   }
   
   for (const column of board.columns) {
-    if (!column || !column.tasks || !Array.isArray(column.tasks)) {
+    if (!column?.tasks || !Array.isArray(column.tasks)) {
       continue;
     }
-    const task = column.tasks.find((t: Task) => t && t.id === taskId);
+    const task = column.tasks.find((t: Task) => t?.id === taskId);
     if (task) {
       return { task, column };
     }
@@ -97,6 +97,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   
   // Board state
   const [board, setBoard] = useState<Board | null>(null);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>("all");
   // Active task being dragged (for drag overlay)
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   // Loading state
@@ -134,9 +137,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    * 
    * Memoized with useCallback to prevent infinite loops and stale closures.
    * Fetches complete board structure including columns and tasks.
-   * 
-   * Fixed: Added proper error handling and validation.
-   * Fixed: Added request deduplication to prevent duplicate concurrent requests.
    */
   const fetchBoard = useCallback(async () => {
     if (!boardId) {
@@ -244,19 +244,15 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    * Sets the active task for drag overlay display.
    * Prevents dragging locked tasks (tasks in Done column).
    * 
-   * Fixed: Added null checks to prevent crashes.
    */
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    if (!board || !board.columns || !Array.isArray(board.columns)) return;
+    if (!board?.columns || !Array.isArray(board.columns)) return;
 
     // Check if dragging a task
     const result = findTaskInBoard(board, active.id as string);
-    if (result && result.task) {
-      // Prevent dragging locked tasks
-      if (result.task.locked) {
-        return;
-      }
+    if (result?.task) {
+      if (result.task.locked) return;
       setActiveTask(result.task);
     }
     // Note: Columns can also be dragged, but we don't need to track them here
@@ -305,7 +301,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over || !board || !board.columns || !Array.isArray(board.columns)) {
+    if (!over || !board?.columns || !Array.isArray(board.columns)) {
       // If dropped outside or board is invalid, just return (optimistic update will remain)
       return;
     }
@@ -314,13 +310,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     const overId = over.id as string;
 
     // Check if dragging a column (not a task)
-    // Optimize: Use a single pass to find both columns if needed
     let draggedColumn: (Column & { tasks: Task[] }) | undefined;
     let overColumn: (Column & { tasks: Task[] }) | undefined;
     const isDraggingColumn = board.columns.some(col => {
-      if (col && col.id === activeId) draggedColumn = col;
-      if (col && col.id === overId) overColumn = col;
-      return col && col.id === activeId;
+      if (col?.id === activeId) draggedColumn = col;
+      if (col?.id === overId) overColumn = col;
+      return col?.id === activeId;
     });
     
     if (isDraggingColumn) {
@@ -335,10 +330,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
       // Calculate new order based on the column it was dropped on
       const sortedCols = [...board.columns]
-        .filter(col => col && typeof col.order === 'number')
+        .filter((col): col is Column & { tasks: Task[]; order: number } => 
+          col !== null && typeof col.order === 'number'
+        )
         .sort((a, b) => a.order - b.order);
-      const draggedIndex = sortedCols.findIndex(col => col && col.id === activeId);
-      const overIndex = sortedCols.findIndex(col => col && col.id === overId);
+      const draggedIndex = sortedCols.findIndex(col => col?.id === activeId);
+      const overIndex = sortedCols.findIndex(col => col?.id === overId);
 
       if (draggedIndex === -1 || overIndex === -1) {
         return; // Invalid indices, just return without refetch
@@ -408,72 +405,53 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // ========== TASK DRAGGING LOGIC ==========
     
     // Find the task being dragged
-    const taskId = activeId;
-    const result = findTaskInBoard(board, taskId);
-    if (!result || !result.task || !result.column) {
-      // Task not found, just return (no update possible)
+    const result = findTaskInBoard(board, activeId);
+    if (!result?.task || !result.column?.id || typeof result.task.order !== 'number') {
       return;
     }
 
     const { task, column: currentColumn } = result;
-
-    // Safety check: ensure task and currentColumn are valid
-    if (!task || !currentColumn || !currentColumn.id || typeof task.order !== 'number') {
-      return; // Invalid task/column, just return
-    }
+    const taskId = task.id;
 
     // Initialize with current values (will be updated based on drop target)
     let newColumnId = currentColumn.id;
     let newOrder = task.order;
 
     // Determine target column and position based on drop target
-    const targetColumn = board.columns.find(col => col && col.id === overId);
+    const targetColumn = board.columns.find(col => col?.id === overId);
     
-    if (targetColumn && targetColumn.id) {
+    if (targetColumn?.id) {
       // Dropped directly on a column
       newColumnId = targetColumn.id;
       // Get max order in target column (excluding the task being moved)
-      const tasks = Array.isArray(targetColumn.tasks) ? targetColumn.tasks : [];
-      const targetTasks = tasks.filter((t: Task) => t && t.id !== taskId);
-      if (targetTasks.length > 0) {
-        const orders = targetTasks
-          .filter(t => t && typeof t.order === 'number')
-          .map(t => t.order);
-        const maxOrder = orders.length > 0 ? Math.max(...orders) : 0;
-        newOrder = maxOrder + 1; // Place at end
-      } else {
-        // Empty column, start at 0
-        newOrder = 0;
-      }
+      const validTasks = (targetColumn.tasks ?? []).filter((t: Task): t is Task => 
+        t?.id !== taskId && typeof t.order === 'number'
+      );
+      newOrder = validTasks.length > 0 
+        ? Math.max(...validTasks.map(t => t.order)) + 1 
+        : 0;
     } else {
       // Dropped on another task - find that task's column and position
       const overTaskResult = findTaskInBoard(board, overId);
-      if (overTaskResult && overTaskResult.column && overTaskResult.column.id) {
+      if (overTaskResult?.column?.id) {
         newColumnId = overTaskResult.column.id;
         
         // Get sorted tasks in target column (excluding the task being moved)
-        const tasks = Array.isArray(overTaskResult.column.tasks) ? overTaskResult.column.tasks : [];
-        const targetTasks = tasks
-          .filter((t: Task) => t && t.id !== taskId)
+        const targetTasks = (overTaskResult.column.tasks ?? [])
+          .filter((t): t is Task => t?.id !== taskId && typeof t.order === 'number')
           .sort((a, b) => a.order - b.order);
         
-        const overTaskIndex = targetTasks.findIndex((t: Task) => t && t.id === overId);
+        const overTaskIndex = targetTasks.findIndex(t => t.id === overId);
         
         if (overTaskIndex !== -1 && targetTasks[overTaskIndex]) {
           // Insert at the position of the over task
           const overTask = targetTasks[overTaskIndex];
-          newOrder = typeof overTask.order === 'number' ? overTask.order : 0;
+          newOrder = overTask.order;
         } else {
           // Fallback: add to end if target task not found
-          if (targetTasks.length > 0) {
-            const orders = targetTasks
-              .filter(t => t && typeof t.order === 'number')
-              .map(t => t.order);
-            const maxOrder = orders.length > 0 ? Math.max(...orders) : 0;
-            newOrder = maxOrder + 1;
-          } else {
-            newOrder = 0;
-          }
+          newOrder = targetTasks.length > 0 
+            ? Math.max(...targetTasks.map(t => t.order)) + 1 
+            : 0;
         }
       } else {
         // Invalid drop target, just return (no update possible)
@@ -483,7 +461,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
     // Early return if no change in position
     // Safety check: ensure currentColumn and task are valid
-    if (!currentColumn || !task || !currentColumn.id) {
+    if (!currentColumn?.id || !task) {
       return; // Invalid state, just return
     }
     
@@ -495,28 +473,26 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // Update local state immediately for real-time UI feedback
     // Use functional update to ensure we're working with the latest state
     setBoard((prevBoard) => {
-      if (!prevBoard || !prevBoard.columns || !Array.isArray(prevBoard.columns)) {
+      if (!prevBoard?.columns || !Array.isArray(prevBoard.columns)) {
         return prevBoard;
       }
       
       // Find target column to determine if task should be locked
-      // Optimize: Cache column lookup
-      const targetColumn = prevBoard.columns.find(col => col && col.id === newColumnId);
+      const targetColumn = prevBoard.columns.find(col => col?.id === newColumnId);
       const isMovingToDone = targetColumn?.title === "Done";
       const wasInDone = currentColumn?.title === "Done";
       
       // Create deep copy of board structure to ensure React detects the change
       const updatedBoard: Board = {
         ...prevBoard,
-        columns: prevBoard.columns.filter(col => col).map(col => {
-          if (col && col.id === currentColumn.id) {
+        columns: prevBoard.columns.filter(Boolean).map(col => {
+          if (col?.id === currentColumn.id) {
             // Remove task from source column and reorder remaining tasks
-            const tasks = Array.isArray(col.tasks) ? col.tasks : [];
-            const updatedTasks = tasks
-              .filter(t => t && t.id !== taskId)
+            const updatedTasks = (col.tasks ?? [])
+              .filter((t): t is Task => t?.id !== taskId)
               .map((t, index) => ({ ...t, order: index }));
             return { ...col, tasks: updatedTasks };
-          } else if (col && col.id === newColumnId) {
+          } else if (col?.id === newColumnId) {
             // Add task to target column with correct locked status
             const updatedTask: Task = {
               ...task,
@@ -527,8 +503,8 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
               movedToDoneAt: isMovingToDone ? new Date() : (wasInDone ? null : task.movedToDoneAt),
             };
             
-            const tasks = Array.isArray(col.tasks) ? col.tasks : [];
-            const targetTasks = tasks.filter(t => t && t.id !== taskId);
+            const targetTasks = (col.tasks ?? [])
+              .filter((t): t is Task => t?.id !== taskId);
             
             // Insert task at correct position
             if (newOrder >= targetTasks.length) {
@@ -571,11 +547,13 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       // Check if task was moved to Done column - show completion alert in real-time
       // IMPORTANT: Call addCompletionAlert OUTSIDE of setBoard callback to avoid React state update errors
       // Validate task has required properties before creating alert
+      // Alert context will check user notification preferences before showing the alert
       if (updatedTask && updatedTask.id && updatedTask.title && updatedTask.locked) {
         // Get target column from current board state to check if it's "Done"
-        const targetColumn = board?.columns?.find(col => col && col.id === newColumnId);
+        const targetColumn = board?.columns?.find(col => col?.id === newColumnId);
         if (targetColumn?.title === "Done") {
           try {
+            // addCompletionAlert will check user notification preferences internally
             addCompletionAlert(updatedTask);
           } catch (error) {
             // Don't break the drag operation
@@ -584,11 +562,15 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         }
       }
       
-      // Update board state with the API response instead of refetching
-      // This prevents unnecessary full board refetches and page refreshes
-      // The optimistic update already shows the change, we just need to sync the locked status and any server-side changes
+      // Update board state with the API response to ensure UI reflects server state
+      // This syncs the optimistic update with the actual database state
+      // Critical: This ensures the UI updates immediately after drag operation
       setBoard((prevBoard) => {
         if (!prevBoard || !updatedTask) return prevBoard;
+        
+        // Find the target column from the updated task's column relation
+        const targetColumnFromResponse = updatedTask.column;
+        const targetColumnId = targetColumnFromResponse?.id || newColumnId;
         
         // Create updated board with the server response merged in
         const syncedBoard: Board = {
@@ -597,29 +579,52 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
             if (!col) return col;
             
             // Update the task in the target column with the server response
-            if (col.id === newColumnId) {
-              const tasks = Array.isArray(col.tasks) ? col.tasks : [];
-              const updatedTasks = tasks.map(t => {
-                if (t.id === updatedTask.id) {
-                  // Merge server response with existing task data, preserving column reference
-                  return { 
-                    ...updatedTask, 
-                    column: col,
-                    // Ensure all task properties are preserved
-                    description: updatedTask.description ?? t.description,
-                    dueDate: updatedTask.dueDate ?? t.dueDate,
-                  };
-                }
-                return t;
-              });
-              return { ...col, tasks: updatedTasks };
+            if (col.id === targetColumnId) {
+              const tasks = col.tasks ?? [];
+              // Check if task already exists in this column (from optimistic update)
+              const taskExists = tasks.some(t => t.id === updatedTask.id);
+              
+              if (taskExists) {
+                // Task already in column from optimistic update - update it with server data
+                const updatedTasks = tasks.map(t => {
+                  if (t.id === updatedTask.id) {
+                    // Merge server response with existing task data, preserving all properties
+                    return { 
+                      ...updatedTask, 
+                      // Ensure columnId matches the target column
+                      columnId: targetColumnId,
+                      // Preserve all task properties from server response
+                      description: updatedTask.description ?? t.description,
+                      dueDate: updatedTask.dueDate ?? t.dueDate,
+                      order: updatedTask.order ?? t.order,
+                      locked: updatedTask.locked ?? t.locked,
+                      movedToDoneAt: updatedTask.movedToDoneAt ?? t.movedToDoneAt,
+                    };
+                  }
+                  return t;
+                });
+                return { ...col, tasks: updatedTasks };
+              } else {
+                // Task not in column yet - add it (shouldn't happen but handle gracefully)
+                const updatedTasks = [...tasks, {
+                  ...updatedTask,
+                  columnId: targetColumnId,
+                }];
+                // Reorder tasks by their order property
+                const sortedTasks = updatedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+                return { ...col, tasks: sortedTasks };
+              }
             }
             
-            // Remove task from source column if it was moved
-            if (col.id === currentColumn.id && col.id !== newColumnId) {
-              const tasks = Array.isArray(col.tasks) ? col.tasks : [];
-              const filteredTasks = tasks.filter(t => t.id !== updatedTask.id);
-              return { ...col, tasks: filteredTasks };
+            // Remove task from source column if it was moved to a different column
+            // This ensures the task is removed from the old column after the move
+            if (col.id === currentColumn.id && col.id !== targetColumnId) {
+              const filteredTasks = (col.tasks ?? [])
+                .filter((t): t is Task => t?.id !== updatedTask.id);
+              // Reorder remaining tasks to maintain proper order sequence
+              const reorderedTasks = filteredTasks
+                .map((t, index) => ({ ...t, order: index }));
+              return { ...col, tasks: reorderedTasks };
             }
             
             return col;
@@ -657,7 +662,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       
       // Find the column that should contain the new task
       const targetColumn = prevBoard.columns.find(
-        col => col && col.id === newTask.columnId
+        col => col?.id === newTask.columnId
       );
       
       if (!targetColumn) {
@@ -670,14 +675,13 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       const updatedBoard: Board = {
         ...prevBoard,
         columns: prevBoard.columns.map(col => {
-          if (col && col.id === newTask.columnId) {
+          if (col?.id === newTask.columnId) {
             // Add the new task to this column
-            const tasks = Array.isArray(col.tasks) ? col.tasks : [];
             // Ensure task has column reference for consistency
             const taskWithColumn = { ...newTask, column: col };
             return {
               ...col,
-              tasks: [...tasks, taskWithColumn].sort((a, b) => a.order - b.order),
+              tasks: [...(col.tasks ?? []), taskWithColumn].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
             };
           }
           return col;
@@ -770,15 +774,53 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   /**
    * Memoized sorted columns array
    * Sorts columns by their order property to maintain correct display order
-   * 
-   * Fixed: Added validation to prevent crashes with invalid board data.
    */
   const sortedColumns = useMemo(() => {
-    if (!board || !board.columns || !Array.isArray(board.columns)) return [];
+    if (!board?.columns || !Array.isArray(board.columns)) return [];
     return [...board.columns]
-      .filter(col => col && typeof col.order === 'number')
+      .filter((col): col is Column & { tasks: Task[]; order: number } => 
+        col !== null && typeof col.order === 'number'
+      )
       .sort((a, b) => a.order - b.order);
   }, [board]);
+
+  /**
+   * Memoized filtered board based on search query
+   * Filters tasks across all columns based on search query and filter.
+   * Reuses board/column references when no filtering occurs.
+   */
+  const filteredBoard = useMemo(() => {
+    if (!board) return null;
+    
+    // Early return if no filtering needed
+    if (!searchQuery && searchFilter === "all") {
+      return board;
+    }
+
+    // Filter tasks in each column
+    const filteredColumns = board.columns.map((column) => {
+      const allTasks = column.tasks ?? [];
+      const filteredTasks = searchTasks(allTasks, {
+        query: searchQuery,
+        filter: searchFilter,
+      });
+      
+      // Reuse column if tasks unchanged
+      if (filteredTasks.length === allTasks.length && 
+          filteredTasks.every((task, idx) => task.id === allTasks[idx]?.id)) {
+        return column;
+      }
+      
+      return { ...column, tasks: filteredTasks };
+    });
+
+    // Reuse board if columns unchanged
+    if (filteredColumns.every((col, idx) => col === board.columns[idx])) {
+      return board;
+    }
+
+    return { ...board, columns: filteredColumns };
+  }, [board, searchQuery, searchFilter]);
 
   /**
    * Memoized column IDs array
@@ -797,13 +839,8 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    * Dynamic column width calculation that scales with viewport
    * Ensures all columns fit on one page when possible
    * 
-   * Fixed: Mobile-first approach with proper fixed widths for touch interaction
-   * Fixed: Ensures columns are wide enough for drag-and-drop on mobile
-   * 
-   * Note: This hook must be called before any conditional returns
-   * to maintain consistent hook order across all renders.
-   * 
-   * Note: Actual styling is handled by CSS classes for better responsive behavior
+   * Mobile-first approach with proper fixed widths for touch interaction.
+   * Actual styling is handled by CSS classes for better responsive behavior.
    */
   const columnWidthStyle = useMemo(() => {
     if (columnCount === 0) return { width: '100%' };
@@ -850,7 +887,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-black w-full min-w-0 overflow-hidden">
       <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-b border-black/10 dark:border-white/10 bg-white dark:bg-black lg:pl-6 w-full flex-shrink-0">
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3 mb-3">
           <motion.h1
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -862,6 +899,16 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           <div className="flex-shrink-0 flex items-center">
             <LayoutSelector />
           </div>
+        </div>
+        <div className="pl-10 sm:pl-12 lg:pl-0">
+          <SearchBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeFilter={searchFilter}
+            onFilterChange={setSearchFilter}
+            showFilters={true}
+            placeholder="Search tasks…"
+          />
         </div>
       </div>
       
@@ -908,7 +955,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                       // Desktop: flexible based on column count
                     >
                       <KanbanColumn
-                        column={column}
+                        column={(filteredBoard?.columns.find(c => c.id === column.id) || column)}
                         onTaskAdded={handleTaskAdded}
                         onTaskEdit={handleTaskEdit}
                         onTaskDelete={handleTaskDelete}
@@ -938,7 +985,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         ) : layout === "table" ? (
           <div className="h-full overflow-auto">
             <BoardTableView
-              board={board}
+              board={filteredBoard || board}
               onTaskEdit={handleTaskEdit}
               onTaskDelete={handleTaskDelete}
               onTaskArchive={handleTaskArchive}
@@ -947,7 +994,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         ) : layout === "grid" ? (
           <div className="h-full overflow-auto">
             <BoardGridView
-              board={board}
+              board={filteredBoard || board}
               onTaskEdit={handleTaskEdit}
               onTaskDelete={handleTaskDelete}
               onTaskArchive={handleTaskArchive}
@@ -956,7 +1003,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         ) : layout === "list" ? (
           <div className="h-full overflow-auto">
             <BoardListView
-              board={board}
+              board={filteredBoard || board}
               onTaskEdit={handleTaskEdit}
               onTaskDelete={handleTaskDelete}
               onTaskArchive={handleTaskArchive}

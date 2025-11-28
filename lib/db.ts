@@ -188,15 +188,8 @@ export const db: PrismaClient = (() => {
   // Create new instance
   const client = createPrismaClient();
 
-  // Store in global scope
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = client;
-  } else {
-    // In production (serverless), also store in global to reuse across invocations
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = client;
-    }
-  }
+  // Store in global scope (works for both development and production)
+  globalForPrisma.prisma = client;
 
   return client;
 })();

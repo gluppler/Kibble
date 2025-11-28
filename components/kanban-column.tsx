@@ -50,6 +50,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState<"normal" | "high">("normal");
   const [taskError, setTaskError] = useState("");
 
   // Drag and drop configuration - makes this column a drop target
@@ -98,25 +99,21 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
       title: string;
       description?: string | null;
       dueDate?: string | null;
+      priority?: "normal" | "high";
       columnId: string;
     } = {
       title: taskTitle.trim(),
       columnId: column.id,
+      priority: taskPriority,
     };
 
     // Only include description if it has content
-    if (taskDescription && taskDescription.trim().length > 0) {
-      requestBody.description = taskDescription.trim();
-    } else {
-      requestBody.description = null;
-    }
+    const trimmedDescription = taskDescription?.trim();
+    requestBody.description = trimmedDescription && trimmedDescription.length > 0 ? trimmedDescription : null;
 
     // Only include dueDate if it has a value
-    if (taskDueDate && taskDueDate.trim().length > 0) {
-      requestBody.dueDate = taskDueDate.trim();
-    } else {
-      requestBody.dueDate = null;
-    }
+    const trimmedDueDate = taskDueDate?.trim();
+    requestBody.dueDate = trimmedDueDate && trimmedDueDate.length > 0 ? trimmedDueDate : null;
 
     try {
       // Create task via API
@@ -147,6 +144,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
       setTaskTitle("");
       setTaskDescription("");
       setTaskDueDate("");
+      setTaskPriority("normal");
       setTaskError("");
       setIsAddingTask(false);
 
@@ -159,7 +157,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
         logError("[TASK CREATE] Error creating task:", error);
       setTaskError(error instanceof Error ? error.message : "Failed to create task. Please try again.");
     }
-  }, [taskTitle, taskDescription, taskDueDate, column.id, onTaskAdded, checkTaskForAlert]);
+  }, [taskTitle, taskDescription, taskDueDate, taskPriority, column.id, onTaskAdded, checkTaskForAlert]);
 
   /**
    * Determines if tasks can be created in this column
@@ -261,6 +259,24 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
               </p>
             </div>
             <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15 }}
+            >
+              <label className="block text-xs font-bold text-black dark:text-white mb-1.5">
+                Priority
+              </label>
+              <select
+                value={taskPriority}
+                onChange={(e) => setTaskPriority(e.target.value as "normal" | "high")}
+                className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent text-xs sm:text-sm font-bold transition-all [color-scheme:light] dark:[color-scheme:dark]"
+                aria-label="Task priority"
+              >
+                <option value="normal">Normal</option>
+                <option value="high">High Priority</option>
+              </select>
+            </motion.div>
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
@@ -279,6 +295,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
                   setTaskTitle("");
                   setTaskDescription("");
                   setTaskDueDate("");
+                  setTaskPriority("normal");
                   setTaskError("");
                 }}
                 className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold min-h-[44px] sm:min-h-[36px] flex items-center justify-center"

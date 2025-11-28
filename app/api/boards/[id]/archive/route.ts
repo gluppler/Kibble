@@ -1,12 +1,12 @@
 /**
  * Board Archive API Route
  * 
- * Archives or unarchives a board.
+ * Archives or unarchives a board and all its tasks.
  * 
  * Security:
  * - Requires authentication
  * - Verifies board ownership
- * - Archives board (does not delete)
+ * - Archives board and all tasks (does not delete)
  */
 
 import { NextResponse } from "next/server";
@@ -23,7 +23,7 @@ export const maxDuration = 30;
 /**
  * POST /api/boards/[id]/archive
  * 
- * Archives a board
+ * Archives a board and all its tasks
  */
 export async function POST(
   request: Request,
@@ -42,25 +42,50 @@ export async function POST(
       );
     }
 
-    // Archive the board
-    const board = await db.board.update({
-      where: { id },
-      data: {
-        archived: true,
-        archivedAt: new Date(),
-      },
-      select: {
-        id: true,
-        title: true,
-        archived: true,
-        archivedAt: true,
-      },
+    const archiveDate = new Date();
+
+    // Archive the board and all its tasks in a transaction
+    const result = await db.$transaction(async (tx) => {
+      // Archive the board
+      const board = await tx.board.update({
+        where: { id },
+        data: {
+          archived: true,
+          archivedAt: archiveDate,
+        },
+        select: {
+          id: true,
+          title: true,
+          archived: true,
+          archivedAt: true,
+        },
+      });
+
+      // Archive all tasks in all columns of this board
+      const tasksUpdateResult = await tx.task.updateMany({
+        where: {
+          column: {
+            boardId: id,
+          },
+          archived: false, // Only archive tasks that aren't already archived
+        },
+        data: {
+          archived: true,
+          archivedAt: archiveDate,
+        },
+      });
+
+      return {
+        board,
+        archivedTasksCount: tasksUpdateResult.count,
+      };
     });
 
     return NextResponse.json({
       success: true,
-      board,
-      message: "Board archived successfully",
+      board: result.board,
+      archivedTasksCount: result.archivedTasksCount,
+      message: `Board and ${result.archivedTasksCount} task(s) archived successfully`,
     });
   } catch (error) {
     logError("Error archiving board:", error);
@@ -74,7 +99,7 @@ export async function POST(
 /**
  * DELETE /api/boards/[id]/archive
  * 
- * Unarchives a board (restores it)
+ * Unarchives a board and all its tasks (restores them)
  */
 export async function DELETE(
   request: Request,
@@ -93,25 +118,48 @@ export async function DELETE(
       );
     }
 
-    // Unarchive the board
-    const board = await db.board.update({
-      where: { id },
-      data: {
-        archived: false,
-        archivedAt: null,
-      },
-      select: {
-        id: true,
-        title: true,
-        archived: true,
-        archivedAt: true,
-      },
+    // Unarchive the board and all its tasks in a transaction
+    const result = await db.$transaction(async (tx) => {
+      // Unarchive the board
+      const board = await tx.board.update({
+        where: { id },
+        data: {
+          archived: false,
+          archivedAt: null,
+        },
+        select: {
+          id: true,
+          title: true,
+          archived: true,
+          archivedAt: true,
+        },
+      });
+
+      // Unarchive all tasks in all columns of this board
+      const tasksUpdateResult = await tx.task.updateMany({
+        where: {
+          column: {
+            boardId: id,
+          },
+          archived: true, // Only unarchive tasks that are archived
+        },
+        data: {
+          archived: false,
+          archivedAt: null,
+        },
+      });
+
+      return {
+        board,
+        restoredTasksCount: tasksUpdateResult.count,
+      };
     });
 
     return NextResponse.json({
       success: true,
-      board,
-      message: "Board restored successfully",
+      board: result.board,
+      restoredTasksCount: result.restoredTasksCount,
+      message: `Board and ${result.restoredTasksCount} task(s) restored successfully`,
     });
   } catch (error) {
     logError("Error unarchiving board:", error);

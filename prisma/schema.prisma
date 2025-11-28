@@ -102,6 +102,9 @@ model User {
   mfaEnabled          Boolean              @default(false)
   mfaSecret           String? // Encrypted TOTP secret (server-side only)
   mfaBackupCodes      String? // Hashed backup codes (comma-separated)
+  notificationsEnabled Boolean            @default(true) // Global notification toggle
+  dueDateAlertsEnabled Boolean            @default(true) // Due date alerts toggle
+  completionAlertsEnabled Boolean         @default(true) // Completion alerts toggle
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   accounts            Account[]
@@ -258,6 +261,7 @@ model Task {
   archived      Boolean   @default(false)
   movedToDoneAt DateTime?
   archivedAt    DateTime?
+  priority      String    @default("normal") // "normal" or "high"
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   column        Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
@@ -268,4 +272,6 @@ model Task {
   @@index([locked])
   @@index([archived])
   @@index([archivedAt])
+  @@index([priority])
+  @@index([title]) // For search optimization
 }

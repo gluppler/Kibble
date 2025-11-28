@@ -51,6 +51,10 @@ export default function SettingsPage() {
   const [showDisableDialog, setShowDisableDialog] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
   const [copiedCodes, setCopiedCodes] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [dueDateAlertsEnabled, setDueDateAlertsEnabled] = useState(true);
+  const [completionAlertsEnabled, setCompletionAlertsEnabled] = useState(true);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   // Redirect if not authenticated (use useEffect to avoid side effects during render)
   useEffect(() => {
@@ -59,17 +63,28 @@ export default function SettingsPage() {
     }
   }, [status, router]);
 
-  // Fetch MFA status
+  // Fetch MFA status and notification preferences
   useEffect(() => {
     if (session?.user?.id) {
-      fetch("/api/auth/mfa/status")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.mfaEnabled !== undefined) {
-            setMfaEnabled(data.mfaEnabled);
+      Promise.all([
+        fetch("/api/auth/mfa/status").then((res) => res.json()),
+        fetch("/api/user/notifications").then((res) => res.json()).catch(() => ({})),
+      ])
+        .then(([mfaData, notificationData]) => {
+          if (mfaData.mfaEnabled !== undefined) {
+            setMfaEnabled(mfaData.mfaEnabled);
+          }
+          if (notificationData.notificationsEnabled !== undefined) {
+            setNotificationsEnabled(notificationData.notificationsEnabled);
+          }
+          if (notificationData.dueDateAlertsEnabled !== undefined) {
+            setDueDateAlertsEnabled(notificationData.dueDateAlertsEnabled);
+          }
+          if (notificationData.completionAlertsEnabled !== undefined) {
+            setCompletionAlertsEnabled(notificationData.completionAlertsEnabled);
           }
         })
-        .catch((err) => logError("Error fetching MFA status:", err));
+        .catch((err) => logError("Error fetching user preferences:", err));
     }
   }, [session]);
 
@@ -495,6 +510,206 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
+        </motion.div>
+
+        {/* Notification Preferences Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.04 }}
+          className="bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-4 sm:p-6 mb-4 sm:mb-6"
+        >
+          <div className="flex items-center gap-3 mb-4 sm:mb-6">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-black dark:bg-white flex items-center justify-center">
+              <Settings className="text-white dark:text-black" size={18} />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-black dark:text-white">
+                Notification Preferences
+              </h2>
+              <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mt-1 font-bold">
+                Control when you receive alerts and notifications
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Global Notification Toggle */}
+            <div className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg border border-black/10 dark:border-white/10">
+              <div className="flex-1">
+                <label className="text-sm sm:text-base font-bold text-black dark:text-white block mb-1">
+                  Enable Notifications
+                </label>
+                <p className="text-xs text-black/60 dark:text-white/60 font-bold">
+                  Master toggle for all notifications and alerts
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  const newValue = !notificationsEnabled;
+                  setNotificationsEnabled(newValue);
+                  setNotificationsLoading(true);
+                  try {
+                    const res = await fetch("/api/user/notifications", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ notificationsEnabled: newValue }),
+                    });
+                    if (!res.ok) {
+                      setNotificationsEnabled(!newValue); // Revert on error
+                      setError("Failed to update notification preferences");
+                    } else {
+                      // Emit event to notify other components/tabs
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("kibble:notifications:updated", Date.now().toString());
+                        window.dispatchEvent(new CustomEvent("kibble:notifications:updated", { detail: { type: "notifications:updated" } }));
+                      }
+                    }
+                  } catch (err) {
+                    setNotificationsEnabled(!newValue); // Revert on error
+                    logError("Error updating notifications:", err);
+                    setError("Failed to update notification preferences");
+                  } finally {
+                    setNotificationsLoading(false);
+                  }
+                }}
+                disabled={notificationsLoading}
+                className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                  notificationsEnabled
+                    ? "bg-black dark:bg-white"
+                    : "bg-black/20 dark:bg-white/20"
+                }`}
+                aria-label={notificationsEnabled ? "Disable notifications" : "Enable notifications"}
+                type="button"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white dark:bg-black transition-transform ${
+                    notificationsEnabled ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Due Date Alerts Toggle */}
+            <div className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg border border-black/10 dark:border-white/10">
+              <div className="flex-1">
+                <label className="text-sm sm:text-base font-bold text-black dark:text-white block mb-1">
+                  Due Date Alerts
+                </label>
+                <p className="text-xs text-black/60 dark:text-white/60 font-bold">
+                  Get notified when tasks are due or overdue
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!notificationsEnabled) {
+                    setError("Enable notifications first to use individual alert types");
+                    return;
+                  }
+                  const newValue = !dueDateAlertsEnabled;
+                  setDueDateAlertsEnabled(newValue);
+                  setNotificationsLoading(true);
+                  try {
+                    const res = await fetch("/api/user/notifications", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ dueDateAlertsEnabled: newValue }),
+                    });
+                    if (!res.ok) {
+                      setDueDateAlertsEnabled(!newValue); // Revert on error
+                      setError("Failed to update notification preferences");
+                    } else {
+                      // Emit event to notify other components/tabs
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("kibble:notifications:updated", Date.now().toString());
+                        window.dispatchEvent(new CustomEvent("kibble:notifications:updated", { detail: { type: "notifications:updated" } }));
+                      }
+                    }
+                  } catch (err) {
+                    setDueDateAlertsEnabled(!newValue); // Revert on error
+                    logError("Error updating notifications:", err);
+                    setError("Failed to update notification preferences");
+                  } finally {
+                    setNotificationsLoading(false);
+                  }
+                }}
+                disabled={notificationsLoading || !notificationsEnabled}
+                className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                  dueDateAlertsEnabled && notificationsEnabled
+                    ? "bg-black dark:bg-white"
+                    : "bg-black/20 dark:bg-white/20"
+                } ${!notificationsEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                aria-label={dueDateAlertsEnabled ? "Disable due date alerts" : "Enable due date alerts"}
+                type="button"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white dark:bg-black transition-transform ${
+                    dueDateAlertsEnabled && notificationsEnabled ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Completion Alerts Toggle */}
+            <div className="flex items-center justify-between p-3 bg-black/5 dark:bg-white/5 rounded-lg border border-black/10 dark:border-white/10">
+              <div className="flex-1">
+                <label className="text-sm sm:text-base font-bold text-black dark:text-white block mb-1">
+                  Completion Alerts
+                </label>
+                <p className="text-xs text-black/60 dark:text-white/60 font-bold">
+                  Get notified when tasks are moved to Done
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!notificationsEnabled) {
+                    setError("Enable notifications first to use individual alert types");
+                    return;
+                  }
+                  const newValue = !completionAlertsEnabled;
+                  setCompletionAlertsEnabled(newValue);
+                  setNotificationsLoading(true);
+                  try {
+                    const res = await fetch("/api/user/notifications", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ completionAlertsEnabled: newValue }),
+                    });
+                    if (!res.ok) {
+                      setCompletionAlertsEnabled(!newValue); // Revert on error
+                      setError("Failed to update notification preferences");
+                    } else {
+                      // Emit event to notify other components/tabs
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("kibble:notifications:updated", Date.now().toString());
+                        window.dispatchEvent(new CustomEvent("kibble:notifications:updated", { detail: { type: "notifications:updated" } }));
+                      }
+                    }
+                  } catch (err) {
+                    setCompletionAlertsEnabled(!newValue); // Revert on error
+                    logError("Error updating notifications:", err);
+                    setError("Failed to update notification preferences");
+                  } finally {
+                    setNotificationsLoading(false);
+                  }
+                }}
+                disabled={notificationsLoading || !notificationsEnabled}
+                className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                  completionAlertsEnabled && notificationsEnabled
+                    ? "bg-black dark:bg-white"
+                    : "bg-black/20 dark:bg-white/20"
+                } ${!notificationsEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                aria-label={completionAlertsEnabled ? "Disable completion alerts" : "Enable completion alerts"}
+                type="button"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white dark:bg-black transition-transform ${
+                    completionAlertsEnabled && notificationsEnabled ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* Danger Zone Section */}

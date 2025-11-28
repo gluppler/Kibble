@@ -1,6 +1,6 @@
 # 🎓 Kibble
 
-**Kibble** is a modern, production-ready task management application designed for students and professionals. Built with Next.js 16, React 19, and TypeScript, Kibble provides a comprehensive solution for organizing work with class-based boards, intelligent alerts, and a beautiful Kanban interface.
+**Kibble** is a modern, production-ready task management application designed for students and professionals. Built with Next.js 16, React 19, and TypeScript, Kibble provides a comprehensive solution for organizing work with class-based boards, intelligent alerts, priority tagging, and a beautiful Kanban interface.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
 ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
@@ -33,8 +33,10 @@
 - **Responsive Navigation**: Quick access to all boards via responsive sidebar with mobile support
 - **Board Operations**: Create, edit, archive, and delete boards with confirmation dialogs
 - **Archive System**: Archive boards to preserve history without permanent deletion
+- **Board Archive Includes Tasks**: When a board is archived, all its tasks are automatically archived
 - **Real-time Synchronization**: Archive changes sync across tabs and sessions instantly
 - **Persistent Selection**: Board selection persists across page refreshes using localStorage
+- **Board Search**: Real-time search functionality in sidebar to quickly find boards
 
 ### 📋 Kanban Board & Multiple Views
 
@@ -48,17 +50,44 @@
 - **Task Creation Restriction**: Tasks can only be created in the "To-Do" column to enforce workflow
 - **Responsive Design**: Columns automatically wrap vertically on mobile and when window is resized
 - **Optimistic UI**: Instant feedback with no page refreshes during drag-and-drop operations
+- **Task Search**: Real-time search and filtering of tasks within boards
+
+### 🏷️ Priority Tagging System
+
+- **Priority Levels**: Mark tasks as "Normal Priority" or "High Priority"
+- **Visual Indicators**: High priority tasks display with bold borders and warning icon
+- **Theme-Aware Design**: Priority tags follow Kibble's black-white aesthetic
+- **Task Creation**: Set priority when creating new tasks (default: Normal)
+- **Task Editing**: Update priority for existing tasks via edit dialog
+- **Search Integration**: Search by priority keywords ("high priority", "normal priority")
+- **Filter Support**: Filter tasks by priority in search interface
+- **Archive Integration**: Priority tags visible in archived tasks
+
+### 🔍 Search & Filter System
+
+- **Real-time Search**: Instant search as you type with optimized performance
+- **Multi-field Search**: Search across task titles, descriptions, board names, and tag names
+- **Fuzzy Matching**: Intelligent search that finds relevant results even with partial matches
+- **Context-Aware Filters**: Filter options adapt based on current page (Main, Archive, Sidebar)
+- **Priority Filters**: Filter by "High Priority" or "Normal Priority" tasks
+- **Archive Search**: Search archived tasks and boards with dedicated filters
+- **Seamless UX**: No input interruption, smooth typing experience across all search bars
+- **Empty States**: Clear messaging when no results are found
 
 ### 📦 Archive System
 
-- **Dedicated Archive Page**: Full-featured archive management with tabbed interface
+- **Dedicated Archive Page**: Full-featured archive management with tabbed interface (Tasks/Boards)
 - **Real-time Updates**: Archive changes update in real-time across all tabs using localStorage events
 - **Restore Functionality**: Restore archived items back to active boards with one click
+- **Board Restore**: Restoring a board automatically restores all its tasks
+- **Task Restore Protection**: Tasks from archived boards cannot be restored individually (must restore board first)
+- **Task Count Display**: Archived boards show accurate count of archived tasks
 - **CSV Export**: Export archived tasks and boards to CSV for backup and analysis
 - **Auto-Archive**: Automatic archiving of tasks after 24 hours in "Done" column
 - **Manual Archive**: Archive boards and tasks manually for organization
 - **Event-Driven Architecture**: Uses localStorage events and CustomEvents for cross-tab synchronization
 - **Visibility API Integration**: Efficient background updates only when tab is visible
+- **Immediate UI Updates**: Restored boards and tasks appear immediately without page refresh
 
 ### 🔔 Intelligent Alerts
 
@@ -75,6 +104,7 @@
 
 - **User Authentication**: Secure email/password authentication with NextAuth.js v5
 - **Multi-Factor Authentication (MFA)**: TOTP-based two-factor authentication with QR code setup
+- **MFA Persistence**: MFA settings preserved during password reset (required for reset flow)
 - **Password Reset**: Secure MFA-based password reset flow with recovery codes
 - **Password Uniqueness**: Enforces unique passwords across all users for enhanced security
 - **Data Isolation**: Each user's data is completely isolated and secure
@@ -96,6 +126,7 @@
 - **Minimal Design**: Clean, minimal interface with high contrast black & white theme
 - **PWA Support**: Progressive Web App with service worker and install prompt
 - **Icon Generation**: Automated PNG icon generation from SVG source
+- **SEO Optimized**: Comprehensive metadata for search engines and social sharing
 
 ## 🛠️ Tech Stack
 
@@ -168,6 +199,9 @@
    # NextAuth Configuration
    AUTH_SECRET="generate-with-openssl-rand-base64-32"
    NEXTAUTH_URL="http://localhost:3000"
+   
+   # Optional: App URL for metadata (production)
+   NEXT_PUBLIC_APP_URL="https://your-domain.com"
    ```
    
    Generate `AUTH_SECRET`:
@@ -218,39 +252,62 @@ kibble/
 │   │   │   ├── [...nextauth]/    # NextAuth.js handlers
 │   │   │   ├── register/         # User registration
 │   │   │   ├── mfa/              # MFA setup, verify, disable, login
-│   │   │   ├── check-mfa/        # MFA status check
+│   │   │   ├── check-mfa/       # MFA status check
 │   │   │   └── password/         # Password reset flow
 │   │   ├── archive/              # Archive operations
 │   │   │   ├── boards/           # Archived boards API
 │   │   │   ├── tasks/            # Archived tasks API
 │   │   │   └── export/           # CSV export functionality
 │   │   ├── boards/               # Board CRUD operations
+│   │   │   ├── [id]/             # Board-specific operations
+│   │   │   │   ├── archive/       # Board archive/unarchive
+│   │   │   │   └── route.ts      # Board update/delete
+│   │   │   ├── list/             # List user's boards
+│   │   │   ├── user/             # Get user's first board
+│   │   │   └── route.ts           # Create board
 │   │   ├── columns/              # Column management
 │   │   ├── tasks/                # Task operations
+│   │   │   ├── [id]/             # Task-specific operations
+│   │   │   │   ├── archive/       # Task archive/unarchive
+│   │   │   │   └── route.ts       # Task update/delete
+│   │   │   ├── alerts/           # Tasks with due dates
+│   │   │   ├── cleanup/          # Auto-archive cleanup
+│   │   │   └── route.ts           # Create task
 │   │   └── user/                 # User management
+│   │       ├── delete/           # Account deletion
+│   │       └── notifications/    # Notification preferences
 │   ├── auth/                     # Authentication pages
+│   │   ├── signin/               # Sign-in page
+│   │   └── password/reset/       # Password reset page
 │   ├── archive/                   # Archive page
 │   ├── settings/                  # Settings page
-│   ├── layout.tsx                  # Root layout with providers
-│   ├── page.tsx                    # Main dashboard
-│   ├── providers.tsx               # Context providers wrapper
+│   ├── layout.tsx                 # Root layout with metadata
+│   ├── page.tsx                   # Main dashboard
+│   ├── providers.tsx              # Context providers wrapper
 │   ├── register-sw.tsx            # Service worker registration
-│   └── globals.css                 # Global styles
+│   └── globals.css                # Global styles
 ├── components/                     # React components
 │   ├── kanban-board.tsx           # Main Kanban board component
 │   ├── kanban-column.tsx           # Column component (memoized)
-│   ├── kanban-task.tsx             # Task card component (memoized)
-│   ├── board-table-view.tsx        # Table view implementation
-│   ├── board-grid-view.tsx         # Grid view implementation
-│   ├── board-list-view.tsx         # List view implementation
-│   ├── layout-selector.tsx         # View mode selector
-│   ├── sidebar.tsx                 # Navigation sidebar
-│   ├── notification-system.tsx     # Alert notification panel
-│   └── [other components]          # Additional UI components
+│   ├── kanban-task.tsx            # Task card component (memoized)
+│   ├── board-table-view.tsx       # Table view implementation
+│   ├── board-grid-view.tsx        # Grid view implementation
+│   ├── board-list-view.tsx        # List view implementation
+│   ├── layout-selector.tsx        # View mode selector
+│   ├── sidebar.tsx                # Navigation sidebar with search
+│   ├── search-bar.tsx             # Reusable search component
+│   ├── priority-tag.tsx           # Priority tag component
+│   ├── notification-system.tsx    # Alert notification panel
+│   ├── create-board-dialog.tsx   # Board creation dialog
+│   ├── edit-board-dialog.tsx     # Board editing dialog
+│   ├── edit-task-dialog.tsx      # Task editing dialog
+│   ├── delete-confirmation-dialog.tsx # Delete confirmation
+│   ├── pwa-install-prompt.tsx    # PWA install prompt
+│   └── orientation-handler.tsx    # Mobile orientation handling
 ├── contexts/                       # React contexts
-│   ├── alert-context.tsx           # Alert management context
-│   ├── layout-context.tsx          # Layout preferences context
-│   └── theme-context.tsx           # Theme management context
+│   ├── alert-context.tsx          # Alert management context
+│   ├── layout-context.tsx        # Layout preferences context
+│   └── theme-context.tsx          # Theme management context
 ├── lib/                            # Utilities and helpers
 │   ├── db.ts                      # Prisma client (singleton pattern)
 │   ├── auth.ts                    # NextAuth configuration
@@ -259,21 +316,27 @@ kibble/
 │   ├── date-formatters.ts         # Shared date formatting utilities
 │   ├── date-utils.ts              # Locale-aware date utilities
 │   ├── mfa-utils.ts               # MFA TOTP utilities
-│   ├── password-utils.ts          # Password validation and uniqueness
+│   ├── password-utils.ts         # Password validation and uniqueness
 │   ├── archive-events.ts          # Archive event system
 │   ├── security-logger.ts         # Security event logging
 │   ├── rate-limit.ts              # Rate limiting utilities
 │   ├── logger.ts                  # Centralized logging (dev only)
 │   ├── request-deduplication.ts   # Request deduplication utility
+│   ├── search-utils.ts            # Search and filter utilities
 │   └── types.ts                   # TypeScript type definitions
 ├── prisma/                         # Database schema
 │   ├── schema.prisma              # Prisma schema definition
 │   └── migrations/                # Database migrations
 ├── tests/                          # Test files
+│   ├── api-boards-archive.test.ts # Board archive tests
+│   ├── api-tasks-archive-restore.test.ts # Task restore validation
+│   ├── search-utils.test.ts      # Search functionality tests
+│   ├── responsive-edge-cases.test.ts # Mobile/desktop edge cases
+│   └── [other test files]        # Additional test suites
 ├── scripts/                        # Utility scripts
-│   ├── generate-icons.ts          # PWA icon generation
-│   ├── test-db-connection.ts      # Database connection test
-│   └── cleanup-database.ts        # Database cleanup script
+│   ├── generate-icons.ts         # PWA icon generation
+│   ├── test-db-connection.ts     # Database connection test
+│   └── cleanup-database.ts      # Database cleanup script
 ├── public/                         # Static assets
 │   ├── manifest.json              # PWA manifest
 │   ├── sw.js                      # Service worker
@@ -290,9 +353,12 @@ kibble/
 2. **MFA (Optional)**: User can enable TOTP-based MFA for additional security
 3. **Board Selection**: User selects a board → Board data fetched from API
 4. **Task Management**: User creates/edits/moves tasks → Optimistic UI updates → Database persistence
-5. **Alerts**: System checks due dates → Alerts generated → Browser notifications shown
-6. **Auto-Archive**: Background process archives tasks in Done column after 24 hours
-7. **Archive Management**: Users can manually archive/restore tasks and boards
+5. **Search & Filter**: Real-time search and filtering across tasks and boards
+6. **Priority Management**: Set and filter tasks by priority (Normal/High)
+7. **Alerts**: System checks due dates → Alerts generated → Browser notifications shown
+8. **Auto-Archive**: Background process archives tasks in Done column after 24 hours
+9. **Archive Management**: Users can manually archive/restore tasks and boards
+10. **Board Archive**: Archiving a board automatically archives all its tasks
 
 ### State Management
 
@@ -315,6 +381,7 @@ User Action → Component → API Route → Permission Check → Database → Re
 - **Request Deduplication**: Prevents duplicate concurrent API calls
 - **Permission Layering**: Authentication → Ownership → Resource validation
 - **Event-Driven Architecture**: Cross-tab synchronization via localStorage events
+- **Memoization**: Extensive use of `useMemo`, `useCallback`, and `React.memo` for performance
 
 ## 🔌 API Documentation
 
@@ -373,15 +440,15 @@ Checks if user has MFA enabled after password verification.
 Initiates MFA-based password reset flow.
 
 #### `POST /api/auth/password/reset/confirm`
-Confirms password reset with TOTP or recovery code.
+Confirms password reset with TOTP or recovery code. **Preserves MFA settings** after reset.
 
 ### Archive Routes
 
 #### `GET /api/archive/tasks`
-Returns all archived tasks for authenticated user, ordered by archive date.
+Returns all archived tasks for authenticated user, ordered by archive date. Includes board information.
 
 #### `GET /api/archive/boards`
-Returns all archived boards for authenticated user, ordered by archive date.
+Returns all archived boards for authenticated user with archived tasks count, ordered by archive date.
 
 #### `GET /api/archive/export`
 Exports archived tasks and/or boards to CSV format.
@@ -414,10 +481,30 @@ Updates board title (requires ownership).
 Deletes board permanently (requires ownership, cascade deletes columns and tasks).
 
 #### `POST /api/boards/[id]/archive`
-Archives board (sets `archived = true`, `archivedAt = timestamp`).
+Archives board and **all its tasks** in a single transaction. Returns count of archived tasks.
+
+**Response**:
+```json
+{
+  "success": true,
+  "board": {...},
+  "archivedTasksCount": 5,
+  "message": "Board and 5 task(s) archived successfully"
+}
+```
 
 #### `DELETE /api/boards/[id]/archive`
-Unarchives (restores) board.
+Unarchives (restores) board and **all its tasks** in a single transaction. Returns count of restored tasks.
+
+**Response**:
+```json
+{
+  "success": true,
+  "board": {...},
+  "restoredTasksCount": 5,
+  "message": "Board and 5 task(s) restored successfully"
+}
+```
 
 #### `GET /api/boards/user`
 Returns user's first board (by creation date) for initial selection.
@@ -433,12 +520,13 @@ Creates new task (only in "To-Do" column).
   "title": "Task Title",
   "description": "Optional description",
   "dueDate": "2024-12-31T23:59:59",
-  "columnId": "column-id"
+  "columnId": "column-id",
+  "priority": "normal" | "high"
 }
 ```
 
 #### `PATCH /api/tasks/[id]`
-Updates task (title, description, dueDate, columnId, order). Handles order recalculation and task locking.
+Updates task (title, description, dueDate, columnId, order, priority). Handles order recalculation and task locking.
 
 #### `DELETE /api/tasks/[id]`
 Deletes task permanently (requires ownership).
@@ -447,7 +535,17 @@ Deletes task permanently (requires ownership).
 Archives task manually.
 
 #### `DELETE /api/tasks/[id]/archive`
-Unarchives (restores) task.
+Unarchives (restores) task. **Prevents restore if task belongs to an archived board**.
+
+**Error Response** (if board is archived):
+```json
+{
+  "error": "Cannot restore task from archived board",
+  "message": "This task belongs to an archived board \"[Board Title]\". Please restore the board first before restoring this task.",
+  "boardId": "...",
+  "boardTitle": "..."
+}
+```
 
 #### `POST /api/tasks/cleanup`
 Archives tasks in Done column older than 24 hours (batch operation).
@@ -470,6 +568,9 @@ Updates column order (used for drag-and-drop reordering).
 
 #### `DELETE /api/user/delete`
 Deletes user account and all associated data (requires password re-authentication).
+
+#### `GET /api/user/notifications`
+Returns user's notification preferences.
 
 ## 🗄️ Database Schema
 
@@ -514,8 +615,9 @@ Deletes user account and all associated data (requires password re-authenticatio
 - `movedToDoneAt`: Timestamp when moved to Done (for auto-archive)
 - `archived`: Boolean flag
 - `archivedAt`: Timestamp when archived
+- `priority`: Priority level ("normal" | "high", default: "normal")
 - Relations: `column`
-- Indexes: `columnId`, `dueDate`, `movedToDoneAt`, `locked`, `archived`, `archivedAt`
+- Indexes: `columnId`, `dueDate`, `movedToDoneAt`, `locked`, `archived`, `archivedAt`, `priority`, `title`
 
 ### Relationships
 
@@ -538,6 +640,7 @@ All relationships use `onDelete: Cascade` for automatic cleanup.
 - **JWT Sessions**: Stateless session management
 - **MFA (TOTP)**: Time-based One-Time Password for two-factor authentication
 - **Backup Codes**: Secure backup codes for MFA recovery
+- **MFA Persistence**: MFA settings preserved during password reset
 
 ### Authorization
 - **Permission System**: All API routes check permissions
@@ -574,21 +677,25 @@ All relationships use `onDelete: Cascade` for automatic cleanup.
 
 ### Test Suite
 
-Kibble includes a comprehensive test suite with **339 test cases** (334 passing, 5 skipped):
+Kibble includes a comprehensive test suite with **462 test cases** (457 passing, 5 skipped):
 
-- **Authentication Tests** (`auth.test.ts`): 17 tests
-- **Security Tests** (`auth-security.test.ts`): 19 tests (5 skipped)
-- **Task API Tests** (`api-tasks.test.ts`): 16 tests
-- **Permission Tests** (`permissions.test.ts`): 22 tests
-- **Task Persistence Tests** (`task-persistence.test.ts`): 19 tests
-- **Column Behavior Tests** (`column-behavior.test.ts`): 11 tests
-- **Due Date Alerts Tests** (`due-date-alerts.test.ts`): 22 tests
-- **Account Deletion Tests** (`account-deletion.test.ts`): 21 tests
-- **Password Uniqueness Tests** (`password-uniqueness.test.ts`): 8 tests
-- **Password Reset MFA Tests** (`password-reset-mfa.test.ts`): 9 tests
-- **Archive Real-time Tests** (`archive-realtime.test.ts`): 6 tests
-- **Board Navigation Tests** (`board-navigation.test.ts`): 10 tests
-- **Request Deduplication Tests** (`request-deduplication.test.ts`): Multiple tests
+- **Authentication Tests** (`auth.test.ts`): User registration and authentication
+- **Security Tests** (`auth-security.test.ts`): Security edge cases (5 skipped)
+- **Task API Tests** (`api-tasks.test.ts`): Task CRUD operations, priority handling
+- **Board Archive Tests** (`api-boards-archive.test.ts`): Board archiving with tasks
+- **Task Archive Restore Tests** (`api-tasks-archive-restore.test.ts`): Task restore validation
+- **Permission Tests** (`permissions.test.ts`): Authorization and access control
+- **Task Persistence Tests** (`task-persistence.test.ts`): Data persistence validation
+- **Column Behavior Tests** (`column-behavior.test.ts`): Column operations
+- **Due Date Alerts Tests** (`due-date-alerts.test.ts`): Alert generation logic
+- **Account Deletion Tests** (`account-deletion.test.ts`): Account deletion flow
+- **Password Uniqueness Tests** (`password-uniqueness.test.ts`): Password validation
+- **Password Reset MFA Tests** (`password-reset-mfa.test.ts`): MFA-based password reset
+- **Archive Real-time Tests** (`archive-realtime.test.ts`): Real-time archive updates
+- **Board Navigation Tests** (`board-navigation.test.ts`): Board selection and navigation
+- **Search Utils Tests** (`search-utils.test.ts`): Search and filter functionality
+- **Responsive Edge Cases Tests** (`responsive-edge-cases.test.ts`): Mobile/desktop edge cases
+- **Request Deduplication Tests** (`request-deduplication.test.ts`): Request deduplication logic
 - **Service Worker Tests**: Registration and logic tests
 - **Database Tests**: Connection, cleanup, and RLS compatibility tests
 
@@ -640,6 +747,7 @@ Kibble is optimized for Vercel serverless deployment.
 - `SHADOW_DATABASE_URL`: Optional shadow database URL for migrations
 - `AUTH_SECRET`: Generated secret (32+ characters) - Required for NextAuth v5
 - `NEXTAUTH_URL`: Production URL
+- `NEXT_PUBLIC_APP_URL`: Optional app URL for metadata (recommended for SEO)
 
 **Database Setup**:
 1. Use Supabase or any PostgreSQL provider
@@ -692,6 +800,8 @@ npm run test:coverage # Run with coverage
 - **Formatting**: Consistent indentation and naming
 - **Comments**: JSDoc comments for all public functions
 - **Logging**: Centralized logger (development only)
+- **Nullish Coalescing**: Use `??` instead of `||` for default values
+- **Optional Chaining**: Use `?.` for safe property access
 
 ### Best Practices
 
@@ -701,6 +811,7 @@ npm run test:coverage # Run with coverage
 - **Error Handling**: Always use centralized logger, never `console.error` in production
 - **Type Safety**: Centralize type definitions to avoid duplication
 - **Security First**: All permission checks server-side, input validation on all routes
+- **Code Cleanliness**: No redundancies, optimized functions, clean patterns
 
 ## 🐛 Troubleshooting
 
@@ -760,6 +871,21 @@ npm run test:coverage # Run with coverage
 - Check if tab is visible (polling only when visible)
 - Try manual refresh button
 
+**Issue**: Tasks not showing in archived board
+- Verify board archive includes tasks (check API response)
+- Check that archived tasks are included in archive API query
+
+**Issue**: Cannot restore task
+- Verify task's board is not archived (must restore board first)
+- Check error message for specific instructions
+
+### Search Issues
+
+**Issue**: Search not working
+- Check browser console for errors
+- Verify search query is being passed correctly
+- Check filter options match current page context
+
 ### MFA Issues
 
 **Issue**: MFA setup fails
@@ -767,6 +893,10 @@ npm run test:coverage # Run with coverage
 - Check TOTP code format (6 digits)
 - Ensure system clock is synchronized
 - Try backup codes if TOTP fails
+
+**Issue**: MFA disabled after password reset
+- This should not happen - MFA is preserved during password reset
+- Check API route implementation if issue persists
 
 ## 📖 Additional Resources
 

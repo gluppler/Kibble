@@ -17,7 +17,7 @@ export async function PATCH(
     const session = await getServerAuthSession();
     const { id } = await params;
     const body = await request.json();
-    const { title, description, columnId, order, dueDate } = body;
+    const { title, description, columnId, order, dueDate, priority } = body;
 
     // Check task permission using permission utility
     const permissionCheck = await checkTaskPermission(id, session);
@@ -77,6 +77,7 @@ export async function PATCH(
       columnId?: string;
       order?: number;
       dueDate?: Date | null;
+      priority?: string;
       locked?: boolean;
       archived?: boolean;
       movedToDoneAt?: Date | null;
@@ -86,6 +87,12 @@ export async function PATCH(
     if (title !== undefined && !existingTask.locked) updateData.title = title;
     if (description !== undefined && !existingTask.locked) updateData.description = description || null;
     if (dueDate !== undefined && !existingTask.locked) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    
+    // Handle priority update (can be updated even for locked tasks)
+    if (priority !== undefined) {
+      const validPriorities = ["normal", "high"];
+      updateData.priority = validPriorities.includes(priority) ? priority : "normal";
+    }
     
     // Handle column and order changes - CRITICAL: Always process column changes first
     const isMovingColumn = columnId !== undefined && columnId !== existingTask.columnId;
