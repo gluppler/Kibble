@@ -58,7 +58,15 @@ export async function GET() {
       orderBy: { archivedAt: "desc" },
     });
 
-    return NextResponse.json({ boards });
+    return NextResponse.json(
+      { boards },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error fetching archived boards:", error);
     return NextResponse.json(

@@ -1,25 +1,44 @@
 /**
- * Alert Utilities Module
+ * Alert utilities for Kibble application.
  * 
- * Provides functions for managing due date alerts and completion notifications.
- * Uses Browser Notification API for cross-browser compatibility.
+ * This module provides functions for calculating, formatting, and managing
+ * due date alerts and completion notifications. It integrates with the Browser
+ * Notification API for cross-browser compatibility and native notifications.
+ * 
+ * Alert Types:
+ * - `urgent`: Tasks that are overdue, due today, due tomorrow, or due within 10 days
+ * - `warning`: Reserved for future use
+ * - `completion`: Tasks that have been moved to the "Done" column
+ * 
+ * @module lib/alert-utils
  */
 
 import type { Task } from "@/lib/types";
 import { logError, logWarn } from "@/lib/logger";
 
 /**
- * Alert types
+ * Types of alerts that can be generated.
+ * 
+ * - `urgent`: High-priority alerts for tasks approaching deadlines
+ * - `warning`: Medium-priority alerts (reserved for future use)
+ * - `completion`: Positive alerts for completed tasks
  */
 export type AlertType = 'urgent' | 'warning' | 'completion';
 
 /**
- * Alert urgency levels
+ * Urgency levels for task alerts.
+ * 
+ * - `urgent`: Task requires immediate attention
+ * - `warning`: Task should be reviewed soon
+ * - `null`: No alert needed
  */
 export type AlertUrgency = 'urgent' | 'warning' | null;
 
 /**
- * Alert interface
+ * Structure of an alert object.
+ * 
+ * Alerts are displayed in the notification system and can trigger browser
+ * notifications. Each alert has a stable ID to prevent duplicates.
  */
 export interface Alert {
   id: string;
@@ -34,10 +53,19 @@ export interface Alert {
 }
 
 /**
- * Calculates days until due date
+ * Calculates the number of days until a due date.
+ * 
+ * Returns a positive number if the due date is in the future, zero if
+ * the due date is today, and a negative number if the due date has passed.
  * 
  * @param dueDate - The due date to calculate from
- * @returns Number of days until due date (negative if overdue)
+ * @returns Number of days until due date (negative if overdue, 0 if today)
+ * 
+ * @example
+ * ```typescript
+ * const daysUntil = calculateDaysUntil(new Date("2024-12-31"));
+ * // Returns positive number if in future, negative if past
+ * ```
  */
 export function calculateDaysUntil(dueDate: Date): number {
   const now = new Date();
@@ -46,16 +74,21 @@ export function calculateDaysUntil(dueDate: Date): number {
 }
 
 /**
- * Determines alert urgency based on days until due date
+ * Determines the urgency level of an alert based on days until due date.
  * 
- * @param daysUntil - Days until due date (negative if overdue)
- * @returns Alert urgency level
+ * This function implements the alert logic: tasks are considered urgent if
+ * they are overdue, due today, due tomorrow, or due within 10 days. All
+ * urgent alerts are displayed with red styling to draw attention.
  * 
- * Urgency levels (all return 'urgent' for RED alerts):
- * - 'urgent': Overdue, due today, due tomorrow (1 day), or due in 10 days
- * - null: No alert needed (more than 10 days away)
+ * @param daysUntil - Days until due date (negative if overdue, 0 if today)
+ * @returns Alert urgency level (`'urgent'` or `null`)
  * 
- * All urgent cases show RED alerts as per requirements.
+ * @example
+ * ```typescript
+ * const urgency = getAlertUrgency(-2); // Returns 'urgent' (overdue)
+ * const urgency = getAlertUrgency(0);  // Returns 'urgent' (due today)
+ * const urgency = getAlertUrgency(15); // Returns null (more than 10 days)
+ * ```
  */
 export function getAlertUrgency(daysUntil: number): AlertUrgency {
   if (daysUntil < 0) return 'urgent'; // Overdue - RED
@@ -66,14 +99,29 @@ export function getAlertUrgency(daysUntil: number): AlertUrgency {
 }
 
 /**
- * Checks if a task should generate an alert
+ * Determines if a task should generate an alert and creates the alert object.
  * 
- * @param task - Task to check
- * @returns Alert object if alert should be shown, null otherwise
+ * This function checks if a task meets the criteria for alert generation:
+ * - Task must have a due date
+ * - Task must not be archived
+ * - Task must not be in an archived board
+ * - Due date must be within the alert window (overdue, today, tomorrow, or within 10 days)
  * 
- * Security:
- * - Excludes archived tasks (archived tasks should not show alerts)
- * - Excludes tasks in archived boards (tasks in archived boards should not show alerts)
+ * Security Features:
+ * - Excludes archived tasks from alert generation
+ * - Excludes tasks in archived boards from alert generation
+ * - Validates task structure before processing
+ * 
+ * @param task - Task object to check for alert generation
+ * @returns Alert object if alert should be shown, `null` otherwise
+ * 
+ * @example
+ * ```typescript
+ * const alert = checkTaskAlert(task);
+ * if (alert) {
+ *   addAlert(alert);
+ * }
+ * ```
  */
 export function checkTaskAlert(task: Task): Alert | null {
   // Security: Don't show alerts for archived tasks

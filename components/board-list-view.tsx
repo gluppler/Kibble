@@ -93,8 +93,8 @@ export const BoardListView = memo(function BoardListView({ board, onTaskEdit, on
                         </span>
                         {dueDate && (
                           <div className="flex items-center gap-1">
-                            <Calendar size={12} />
-                            <span>{formatDateToDDMMYYYY(dueDate)}</span>
+                            <Calendar size={12} className="text-black/50 dark:text-white/50 flex-shrink-0" style={{ width: '12px', height: '12px' }} />
+                            <span className="leading-tight">{formatDateToDDMMYYYY(dueDate)}</span>
                           </div>
                         )}
                         {dueDateStatus.status === "overdue" && (

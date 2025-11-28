@@ -1,36 +1,55 @@
 /**
- * Database connection module
+ * Database connection module for Kibble application.
  * 
- * This module exports a singleton Prisma client instance that is reused across
- * the application. Optimized for serverless environments (Vercel).
+ * This module provides a singleton Prisma client instance optimized for
+ * serverless environments (Vercel). The singleton pattern prevents connection
+ * exhaustion in serverless functions where multiple instances could be created
+ * across different invocations.
  * 
- * Security:
- * - Uses parameterized queries (Prisma handles this)
- * - Validates DATABASE_URL before creating client
- * - Implements singleton pattern to prevent connection exhaustion
- * - Proper error handling and connection management
+ * Security Features:
+ * - Parameterized queries (handled automatically by Prisma ORM)
+ * - DATABASE_URL validation before client creation
+ * - Singleton pattern prevents connection pool exhaustion
+ * - Comprehensive error handling with no sensitive data exposure
+ * - Minimal error formatting in production to prevent information leakage
  * 
- * For Vercel production:
- * - Uses DATABASE_URL for all database connections
- * - Implements singleton pattern to prevent connection exhaustion
+ * Serverless Optimization:
+ * - Reuses global Prisma instance across function invocations
+ * - Handles connection pooler compatibility (PgBouncer)
+ * - Configures query timeouts for Vercel's 30-second limit
+ * 
+ * @module lib/db
  */
 
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { logError } from "./logger";
 
 /**
- * Type definition for global Prisma instance storage
- * Used to prevent multiple Prisma client instances in development and serverless
+ * Global storage for Prisma client instance.
+ * 
+ * Used to maintain a singleton instance across serverless function invocations
+ * and during development hot-reloading. Prevents connection pool exhaustion
+ * by reusing the same client instance.
  */
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 /**
- * Validates DATABASE_URL format
+ * Validates the format of a PostgreSQL database connection URL.
  * 
- * @param url - Database URL to validate
- * @returns true if valid, false otherwise
+ * Ensures the URL follows the required PostgreSQL connection string format
+ * and contains all necessary components (host, port, database name).
+ * 
+ * @param url - Database connection URL to validate
+ * @returns `true` if the URL is valid, `false` otherwise
+ * 
+ * @example
+ * ```typescript
+ * if (!validateDatabaseUrl(process.env.DATABASE_URL)) {
+ *   throw new Error("Invalid database URL");
+ * }
+ * ```
  */
 function validateDatabaseUrl(url: string | undefined): boolean {
   if (!url) {
@@ -53,26 +72,28 @@ function validateDatabaseUrl(url: string | undefined): boolean {
 }
 
 /**
- * Prisma client configuration optimized for serverless
+ * Creates a configured Prisma client instance.
  * 
- * Connection:
- * - Uses DATABASE_URL for all database operations (application queries and migrations)
- * - Format: postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:5432/postgres
- * - IMPORTANT: Use DIRECT connection (port 5432) NOT pooler (port 6543)
- * - Pooler connections cause migration issues and prepared statement errors
+ * Configures the Prisma client with optimal settings for serverless environments,
+ * including connection pooling, error handling, and prepared statement compatibility.
+ * 
+ * Connection Configuration:
+ * - Uses DATABASE_URL for all database operations
+ * - Supports direct connections (port 5432) and connection poolers (port 6543)
+ * - Automatically enables PgBouncer mode for pooler connections
+ * - Format: `postgresql://user:password@host:port/database`
  * 
  * Logging:
- * - Development: errors and warnings
- * - Production: errors only (reduces overhead)
- * 
- * Connection Pooling:
- * - Connection limit set to prevent exhaustion in serverless
- * - Query timeout configured for Vercel's 30s limit
+ * - Development: logs errors and warnings for debugging
+ * - Production: logs errors only to reduce overhead
  * 
  * Error Handling:
- * - Validates DATABASE_URL before creating client
- * - Logs errors appropriately
- * - Provides helpful error messages
+ * - Validates DATABASE_URL before client creation
+ * - Uses minimal error formatting in production
+ * - Never exposes sensitive connection details
+ * 
+ * @returns Configured Prisma client instance
+ * @throws {Error} If DATABASE_URL is invalid or missing
  */
 const createPrismaClient = (): PrismaClient => {
   const databaseUrl = process.env.DATABASE_URL;
@@ -90,31 +111,30 @@ const createPrismaClient = (): PrismaClient => {
   }
 
   try {
-    // Fix for prepared statement errors in PostgreSQL
-    // This error occurs when using connection poolers (PgBouncer) or in serverless environments
-    // where prepared statements conflict across different sessions
+    // Handle connection pooler compatibility
+    // PgBouncer and other connection poolers don't support prepared statements
+    // in transaction mode, so we enable pgbouncer mode for pooler connections
     let finalDatabaseUrl = databaseUrl!;
     
     try {
       const connectionUrl = new URL(databaseUrl!);
       
-      // For connection poolers (port 6543), use pgbouncer mode
-      // This tells Prisma to use transaction mode which doesn't use prepared statements
-      // This prevents "prepared statement already exists" errors
-      // PgBouncer in transaction mode doesn't support prepared statements, which is why this works
+      // Enable PgBouncer mode for pooler connections (port 6543)
+      // This prevents "prepared statement already exists" errors by disabling
+      // prepared statements, which aren't supported in transaction pooling mode
       if (connectionUrl.port === "6543") {
         connectionUrl.searchParams.set("pgbouncer", "true");
       }
       
-      // If pgbouncer is already specified, ensure it's set to true
+      // Ensure pgbouncer parameter is set if already present
       if (connectionUrl.searchParams.has("pgbouncer")) {
         connectionUrl.searchParams.set("pgbouncer", "true");
       }
       
       finalDatabaseUrl = connectionUrl.toString();
     } catch (urlError) {
-      // If URL parsing fails, use original URL
-      // This should rarely happen as we validate the URL format earlier
+      // Fallback to original URL if parsing fails
+      // This should be rare since we validate URL format earlier
       logError("Failed to parse DATABASE_URL, using original URL:", urlError);
       finalDatabaseUrl = databaseUrl!;
     }
@@ -135,16 +155,29 @@ const createPrismaClient = (): PrismaClient => {
 };
 
 /**
- * Singleton Prisma client instance
+ * Singleton Prisma client instance.
  * 
- * - In development: Reuses existing instance from global scope to prevent multiple instances during hot-reloading
- * - In production (serverless): Reuses global instance to prevent connection exhaustion
- * - Each serverless function invocation reuses the same instance if available
+ * This exported constant provides a single database client instance that is
+ * reused across the entire application. The singleton pattern is critical for
+ * serverless environments where multiple function invocations could otherwise
+ * exhaust the database connection pool.
+ * 
+ * Behavior:
+ * - Development: Reuses instance from global scope during hot-reloading
+ * - Production: Reuses global instance across serverless function invocations
+ * - Prevents connection pool exhaustion by maintaining a single client
  * 
  * Security:
- * - Validates DATABASE_URL before creating client
- * - Uses singleton pattern to prevent connection exhaustion
- * - Proper error handling
+ * - Validates DATABASE_URL before client creation
+ * - Implements singleton pattern to prevent resource exhaustion
+ * - Comprehensive error handling with no sensitive data exposure
+ * 
+ * @example
+ * ```typescript
+ * import { db } from "@/lib/db";
+ * 
+ * const users = await db.user.findMany();
+ * ```
  */
 export const db: PrismaClient = (() => {
   // Return existing instance if available
@@ -169,9 +202,20 @@ export const db: PrismaClient = (() => {
 })();
 
 /**
- * Health check function for database connection
+ * Performs a health check on the database connection.
  * 
- * @returns Promise<boolean> - true if connection is healthy, false otherwise
+ * Executes a simple query to verify the database is accessible and responsive.
+ * Useful for monitoring, deployment checks, and troubleshooting connection issues.
+ * 
+ * @returns Promise resolving to `true` if connection is healthy, `false` otherwise
+ * 
+ * @example
+ * ```typescript
+ * const isHealthy = await checkDatabaseHealth();
+ * if (!isHealthy) {
+ *   // Handle database connection failure
+ * }
+ * ```
  */
 export async function checkDatabaseHealth(): Promise<boolean> {
   try {
@@ -184,9 +228,22 @@ export async function checkDatabaseHealth(): Promise<boolean> {
 }
 
 /**
- * Gracefully disconnect from database
+ * Gracefully disconnects from the database.
  * 
- * Should be called on application shutdown
+ * Closes all active database connections and cleans up resources. Should be
+ * called during application shutdown to ensure proper cleanup. In serverless
+ * environments, this is typically handled automatically, but explicit calls
+ * can be useful for long-running processes.
+ * 
+ * @returns Promise that resolves when disconnection is complete
+ * 
+ * @example
+ * ```typescript
+ * process.on("SIGTERM", async () => {
+ *   await disconnectDatabase();
+ *   process.exit(0);
+ * });
+ * ```
  */
 export async function disconnectDatabase(): Promise<void> {
   try {

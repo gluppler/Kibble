@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 interface EditBoardDialogProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function EditBoardDialog({
     setError("");
 
     try {
-      const response = await fetch(`/api/boards/${boardId}`, {
+      const response = await deduplicatedFetch(`/api/boards/${boardId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() }),

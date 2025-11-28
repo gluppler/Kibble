@@ -1,11 +1,25 @@
 /**
- * Permission Utilities Module
+ * Permission checking utilities for Kibble application.
  * 
- * Provides functions for checking user permissions for:
- * - Feature 1: Tasks, Kanban Boards, Class-based Task Categories
- * - Feature 2: Due Date Alerts, Completion Alerts
+ * This module provides comprehensive permission checking functions that ensure
+ * users can only access and modify their own resources. All permission checks
+ * follow a layered security approach: authentication → input validation →
+ * resource ownership verification.
  * 
- * All permission checks ensure users can only access/modify their own resources.
+ * Security Features:
+ * - Input validation prevents injection attacks
+ * - Resource ownership verification prevents IDOR vulnerabilities
+ * - Comprehensive logging of security events
+ * - Parameterized queries via Prisma ORM
+ * - Fail-secure defaults (deny access on error)
+ * 
+ * Permission Layers:
+ * 1. Authentication check (user must be logged in)
+ * 2. Input validation (IDs must be valid format)
+ * 3. Resource ownership (user must own the resource)
+ * 4. Relationship validation (resources must be related correctly)
+ * 
+ * @module lib/permissions
  */
 
 import { db } from "@/lib/db";
@@ -14,19 +28,36 @@ import { logSecurityEvent } from "@/lib/security-logger";
 import { logError } from "@/lib/logger";
 
 /**
- * Permission check result
+ * Result of a permission check operation.
+ * 
+ * Used throughout the application to standardize permission check responses
+ * and provide consistent error handling.
  */
 export interface PermissionResult {
+  /** Whether the operation is allowed */
   allowed: boolean;
+  /** Error message if operation is not allowed (for logging/response) */
   error?: string;
+  /** HTTP status code to return if operation is not allowed */
   statusCode?: number;
 }
 
 /**
- * Checks if user is authenticated
+ * Verifies that a user is authenticated.
  * 
- * @param session - User session from NextAuth
- * @returns Permission result
+ * Checks if a valid session exists with a user ID. This is the first layer
+ * of permission checking and must pass before any resource access is allowed.
+ * 
+ * @param session - User session from NextAuth.js
+ * @returns Permission result indicating if user is authenticated
+ * 
+ * @example
+ * ```typescript
+ * const authCheck = checkAuthentication(session);
+ * if (!authCheck.allowed) {
+ *   return NextResponse.json({ error: authCheck.error }, { status: authCheck.statusCode });
+ * }
+ * ```
  */
 export function checkAuthentication(session: Session | null): PermissionResult {
   if (!session?.user?.id) {
@@ -40,17 +71,29 @@ export function checkAuthentication(session: Session | null): PermissionResult {
 }
 
 /**
- * Validates ID format to prevent injection attacks
+ * Validates the format of an ID to prevent injection attacks.
  * 
- * Security:
- * - Rejects empty strings
- * - Limits length to prevent DoS
- * - Only allows alphanumeric, hyphens, and underscores
- * - Prevents SQL injection patterns
+ * This function ensures that all IDs used in database queries follow a safe
+ * format that cannot be exploited for SQL injection or other attacks. It
+ * validates the format before any database operations are performed.
  * 
- * @param id - ID to validate
- * @param idType - Type of ID (for logging)
- * @returns true if valid, false otherwise
+ * Security Features:
+ * - Rejects empty strings and null/undefined values
+ * - Limits length to prevent DoS attacks (max 255 characters)
+ * - Only allows alphanumeric characters, hyphens, and underscores
+ * - Prevents SQL injection patterns and special characters
+ * - Logs invalid attempts for security monitoring
+ * 
+ * @param id - ID string to validate
+ * @param idType - Type of ID (e.g., "boardId", "taskId") for logging purposes
+ * @returns `true` if the ID format is valid, `false` otherwise
+ * 
+ * @example
+ * ```typescript
+ * if (!validateIdFormat(boardId, "boardId")) {
+ *   return { allowed: false, error: "Invalid board ID", statusCode: 400 };
+ * }
+ * ```
  */
 export function validateIdFormat(id: string, idType: string): boolean {
   if (!id || typeof id !== "string" || id.trim().length === 0) {
@@ -74,16 +117,29 @@ export function validateIdFormat(id: string, idType: string): boolean {
 }
 
 /**
- * Checks if user owns a board
+ * Verifies that a user owns a specific board.
  * 
- * Security:
- * - Validates input IDs to prevent injection
- * - Uses parameterized queries (Prisma)
- * - Logs security events for unauthorized access
+ * This function performs a database query to verify that the board exists
+ * and belongs to the specified user. It includes input validation and
+ * security event logging for unauthorized access attempts.
  * 
- * @param boardId - Board ID to check
- * @param userId - User ID from session
- * @returns Permission result
+ * Security Features:
+ * - Validates input IDs before database query
+ * - Uses parameterized queries via Prisma ORM
+ * - Logs security events for unauthorized access attempts
+ * - Returns generic error messages to prevent information leakage
+ * 
+ * @param boardId - Board ID to verify ownership for
+ * @param userId - User ID from authenticated session
+ * @returns Promise resolving to permission result
+ * 
+ * @example
+ * ```typescript
+ * const ownershipCheck = await checkBoardOwnership(boardId, userId);
+ * if (!ownershipCheck.allowed) {
+ *   return NextResponse.json({ error: ownershipCheck.error }, { status: ownershipCheck.statusCode });
+ * }
+ * ```
  */
 export async function checkBoardOwnership(
   boardId: string,

@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import type { Task } from "@/lib/types";
 import { useAlerts } from "@/contexts/alert-context";
 import { getDateInputFormatHint } from "@/lib/date-utils";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 interface EditTaskDialogProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export function EditTaskDialog({
     setError("");
 
     try {
-      const response = await fetch(`/api/tasks/${task.id}`, {
+      const response = await deduplicatedFetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -220,14 +221,19 @@ export function EditTaskDialog({
                   >
                     Due Date
                   </label>
-                  <input
-                    id="edit-due-date"
-                    type="datetime-local"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    title={`Due date - Format: ${getDateInputFormatHint()}`}
-                    className="w-full px-3 py-2 sm:py-2.5 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
-                  />
+                  <div className="relative">
+                    <input
+                      id="edit-due-date"
+                      type="datetime-local"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      title={`Due date - Format: ${getDateInputFormatHint()}`}
+                      className="w-full px-3 py-2 sm:py-2.5 pr-10 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
+                      style={{
+                        paddingRight: '2.5rem',
+                      }}
+                    />
+                  </div>
                   <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
                     Format: {getDateInputFormatHint()}
                   </p>

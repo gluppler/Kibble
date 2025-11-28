@@ -75,7 +75,15 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ tasks });
+    return NextResponse.json(
+      { tasks },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error fetching tasks for alerts:", error);
     return NextResponse.json(

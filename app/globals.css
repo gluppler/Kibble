@@ -163,6 +163,7 @@ body {
   }
   
   /* Kanban columns container - mobile-first responsive with aggressive wrapping */
+  /* Standardized spacing and alignment for consistent rendering across themes */
   .kanban-columns-container {
     /* Always wrap columns when they don't fit - no horizontal scroll */
     display: flex;
@@ -173,33 +174,42 @@ body {
     overscroll-behavior-y: contain;
     width: 100%;
     align-items: flex-start;
-    gap: clamp(0.5rem, 1.5vw, 1rem);
+    /* Consistent gap across all themes - use fixed values to prevent theme shifts */
+    gap: 0.75rem;
+  }
+  
+  /* Ensure consistent gap on mobile */
+  @media (max-width: 640px) {
+    .kanban-columns-container {
+      gap: 0.5rem;
+    }
   }
   
   /* Kanban column wrapper - responsive sizing that wraps when needed */
+  /* Standardized widths to prevent theme-based layout shifts */
   .kanban-column-wrapper {
     /* Mobile and small screens: 2 columns per row */
-    /* Use flex-basis with min-width to force wrapping when space is tight */
-    flex-basis: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
-    width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    /* Use fixed calculations to prevent theme shifts */
+    flex-basis: calc(50% - 0.25rem) !important;
+    width: calc(50% - 0.25rem) !important;
     min-width: 0 !important;
-    flex: 0 0 calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
-    max-width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+    flex: 0 0 calc(50% - 0.25rem) !important;
+    max-width: calc(50% - 0.25rem) !important;
   }
   
   /* Medium screens: 2 columns per row (wider) */
   @media (min-width: 480px) and (max-width: 1023px) {
     .kanban-column-wrapper {
       /* Still 2 columns per row on medium screens */
-      flex-basis: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
-      width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
-      flex: 0 0 calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
-      max-width: calc(50% - clamp(0.25rem, 0.75vw, 0.5rem)) !important;
+      flex-basis: calc(50% - 0.375rem) !important;
+      width: calc(50% - 0.375rem) !important;
+      flex: 0 0 calc(50% - 0.375rem) !important;
+      max-width: calc(50% - 0.375rem) !important;
     }
   }
   
   /* Large screens: aggressive wrapping - wrap when columns don't fit */
-  /* Use flex-basis with min-width to force wrapping when space is tight */
+  /* Use consistent flex values to prevent theme-based layout shifts */
   @media (min-width: 1024px) {
     .kanban-columns-container {
       /* Always wrap - never use horizontal scroll */
@@ -209,11 +219,10 @@ body {
     
     .kanban-column-wrapper {
       /* Use flex-basis that allows wrapping when space is tight */
-      /* flex: 1 1 allows shrinking, but min-width prevents it from getting too small */
-      /* When flex-basis + min-width constraint can't fit, flex-wrap moves to next row */
-      flex: 1 1 calc((100% - (3 * clamp(0.5rem, 1.5vw, 1rem))) / 4) !important;
+      /* Fixed calculation prevents theme shifts */
+      flex: 1 1 calc((100% - (3 * 0.75rem)) / 4) !important;
       min-width: 200px !important;
-      max-width: calc((100% - (3 * clamp(0.5rem, 1.5vw, 1rem))) / 4) !important;
+      max-width: calc((100% - (3 * 0.75rem)) / 4) !important;
       width: auto !important;
     }
     
@@ -286,54 +295,112 @@ body {
     opacity: 0.1;
   }
   
+  /* Mobile menu drawer styles */
+  @media (max-width: 1023px) {
+    /* Mobile drawer width (85% of viewport) */
+    #mobile-sidebar {
+      width: 85% !important;
+      max-width: 320px;
+    }
+  }
+
+  /* Focus outlines for keyboard navigation (PWA accessibility) */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+
+  /* High contrast for accessibility */
+  @media (prefers-contrast: high) {
+    .border-minimal,
+    .border-minimal-dark {
+      opacity: 0.3;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   .border-minimal-dark {
     border: 1px solid var(--foreground);
     opacity: 0.2;
   }
   
-  /* Fix calendar icon visibility in datetime-local inputs for dark theme */
+  /* Date picker icon visibility - theme-aware styling */
   /* Webkit browsers (Chrome, Safari, Edge) */
   input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(0);
     cursor: pointer;
     opacity: 1 !important;
     background-color: transparent;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    margin-left: 4px;
+    filter: invert(0);
   }
   
-  /* Dark theme: invert calendar icon to white (matching text color) */
+  /* Light theme: black icon */
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0) brightness(0) saturate(100%);
+  }
+  
+  /* Dark theme: white icon (inverted) */
   .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
   [data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
   html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) brightness(1) !important;
+    filter: invert(1) brightness(1) saturate(100%) !important;
     opacity: 1 !important;
-    cursor: pointer;
-    background-color: transparent;
-    width: 18px;
-    height: 18px;
   }
   
   /* Firefox */
   input[type="datetime-local"]::-moz-calendar-picker-indicator {
-    filter: invert(0);
     cursor: pointer;
     opacity: 1 !important;
     background-color: transparent;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    margin-left: 4px;
+    filter: invert(0) brightness(0) saturate(100%);
   }
   
-  /* Dark theme: invert calendar icon to white (matching text color) */
+  /* Dark theme: white icon (inverted) */
   .dark input[type="datetime-local"]::-moz-calendar-picker-indicator,
   [data-theme="dark"] input[type="datetime-local"]::-moz-calendar-picker-indicator,
   html.dark input[type="datetime-local"]::-moz-calendar-picker-indicator {
-    filter: invert(1) brightness(1) !important;
+    filter: invert(1) brightness(1) saturate(100%) !important;
     opacity: 1 !important;
-    cursor: pointer;
-    background-color: transparent;
-    width: 18px;
-    height: 18px;
+  }
+  
+  /* Ensure date input has proper contrast and alignment */
+  input[type="datetime-local"] {
+    position: relative;
+    padding-right: 2.5rem;
+  }
+  
+  /* Dark theme input contrast */
+  .dark input[type="datetime-local"],
+  [data-theme="dark"] input[type="datetime-local"],
+  html.dark input[type="datetime-local"] {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .dark input[type="datetime-local"]:focus,
+  [data-theme="dark"] input[type="datetime-local"]:focus,
+  html.dark input[type="datetime-local"]:focus {
+    border-color: rgba(255, 255, 255, 0.8);
   }
   
   /* Mobile-specific optimizations */

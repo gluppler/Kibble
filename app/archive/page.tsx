@@ -12,11 +12,12 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { logError, logWarn } from "@/lib/logger";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 import {
   Archive,
   ArrowLeft,
@@ -61,6 +62,7 @@ interface ArchivedTask {
 export default function ArchivePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<"boards" | "tasks">("tasks");
   const [boards, setBoards] = useState<ArchivedBoard[]>([]);
   const [tasks, setTasks] = useState<ArchivedTask[]>([]);
@@ -68,6 +70,11 @@ export default function ArchivePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [restoring, setRestoring] = useState<string | null>(null);
+  
+  // Refs to prevent duplicate API calls
+  const isFetchingRef = useRef(false);
+  const hasInitialLoadRef = useRef(false);
+  const lastPathnameRef = useRef<string | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -81,21 +88,33 @@ export default function ArchivePage() {
    * 
    * @param silent - If true, uses refreshing state instead of loading state (for background updates)
    * @param fetchBoth - If true, fetches both boards and tasks regardless of active tab (for initial load)
+   * 
+   * Security:
+   * - Uses request deduplication to prevent duplicate concurrent requests
+   * - Includes ref tracking to prevent multiple simultaneous calls
    */
   const fetchArchivedItems = useCallback(async (silent = false, fetchBoth = false) => {
+    // Prevent duplicate concurrent requests
+    if (isFetchingRef.current && !silent) {
+      return;
+    }
+
+    isFetchingRef.current = true;
+
     if (!silent) {
       setLoading(true);
     } else {
       setRefreshing(true);
     }
     setError("");
+    
     try {
       // If fetchBoth is true (initial load), fetch both boards and tasks
       // This ensures counts are accurate when switching tabs
       if (fetchBoth) {
         const [boardsRes, tasksRes] = await Promise.all([
-          fetch("/api/archive/boards"),
-          fetch("/api/archive/tasks"),
+          deduplicatedFetch("/api/archive/boards"),
+          deduplicatedFetch("/api/archive/tasks"),
         ]);
         
         if (!boardsRes.ok) throw new Error("Failed to fetch archived boards");
@@ -106,24 +125,42 @@ export default function ArchivePage() {
         
         setBoards(boardsData.boards || []);
         setTasks(tasksData.tasks || []);
+        hasInitialLoadRef.current = true;
       } else {
         // Normal fetch based on active tab
         if (activeTab === "boards") {
-          const res = await fetch("/api/archive/boards");
+          const res = await deduplicatedFetch("/api/archive/boards");
           if (!res.ok) throw new Error("Failed to fetch archived boards");
           const data = await res.json();
           setBoards(data.boards || []);
         } else {
-          const res = await fetch("/api/archive/tasks");
+          const res = await deduplicatedFetch("/api/archive/tasks");
           if (!res.ok) throw new Error("Failed to fetch archived tasks");
           const data = await res.json();
           setTasks(data.tasks || []);
         }
       }
     } catch (err) {
+      // Ignore abort errors (request cancellation)
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+      // Handle "Response already consumed" errors gracefully
+      if (err instanceof Error && err.message.includes("Response already consumed")) {
+        logWarn("Response already consumed - retrying fetch");
+        // Reset fetching ref before retry
+        isFetchingRef.current = false;
+        // Retry once after a short delay
+        setTimeout(() => {
+          fetchArchivedItems(silent, fetchBoth);
+        }, 100);
+        return;
+      }
       logError("Error fetching archived items:", err);
       setError("Failed to load archived items");
     } finally {
+      // Always reset fetching ref and loading state
+      isFetchingRef.current = false;
       if (!silent) {
         setLoading(false);
       } else {
@@ -132,22 +169,53 @@ export default function ArchivePage() {
     }
   }, [activeTab]);
 
+  // Reset state when navigating to archive page
+  useEffect(() => {
+    // Only reset when pathname changes to /archive (user navigated to this page)
+    if (pathname === "/archive" && status === "authenticated" && session?.user?.id) {
+      // Check if this is a new navigation (pathname changed)
+      if (lastPathnameRef.current !== pathname) {
+        lastPathnameRef.current = pathname;
+        // Reset refs to allow fresh load
+        isFetchingRef.current = false;
+        hasInitialLoadRef.current = false;
+        setLoading(true);
+        setError("");
+      }
+    }
+  }, [pathname, status, session?.user?.id]);
+
   // Fetch archived items on mount (fetch both for accurate counts)
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
-      // On initial mount, fetch both boards and tasks to ensure counts are accurate
+    if (
+      pathname === "/archive" &&
+      status === "authenticated" &&
+      session?.user?.id &&
+      !hasInitialLoadRef.current &&
+      !isFetchingRef.current
+    ) {
+      // On initial mount or navigation, fetch both boards and tasks to ensure counts are accurate
       fetchArchivedItems(false, true);
     }
-  }, [status, session, fetchArchivedItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, status, session?.user?.id]);
 
   // Fetch archived items when tab changes (only fetch the active tab)
+  const prevActiveTabRef = useRef<"boards" | "tasks">(activeTab);
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
+    // Only fetch if initial load is complete and tab actually changed
+    if (
+      status === "authenticated" &&
+      session?.user?.id &&
+      hasInitialLoadRef.current &&
+      prevActiveTabRef.current !== activeTab
+    ) {
+      prevActiveTabRef.current = activeTab;
       // When tab changes, only fetch the active tab (optimization)
-      // But if the other tab hasn't been loaded yet, fetch it too
       fetchArchivedItems(false, false);
     }
-  }, [activeTab, status, session, fetchArchivedItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, status, session?.user?.id]);
 
   /**
    * Real-time updates for archive page
@@ -171,8 +239,8 @@ export default function ArchivePage() {
 
       // Poll every 30 seconds
       intervalId = setInterval(() => {
-        // Only poll if tab is visible
-        if (typeof document !== "undefined" && !document.hidden) {
+        // Only poll if tab is visible and initial load is complete
+        if (typeof document !== "undefined" && !document.hidden && hasInitialLoadRef.current) {
           fetchArchivedItems(true); // true = silent refresh (no loading spinner)
         }
       }, 30 * 1000); // 30 seconds
@@ -192,8 +260,10 @@ export default function ArchivePage() {
           intervalId = null;
         }
       } else {
-        // Tab is visible - start polling and immediately refresh
-        fetchArchivedItems(true); // Silent refresh
+        // Tab is visible - start polling and immediately refresh (if initial load complete)
+        if (hasInitialLoadRef.current) {
+          fetchArchivedItems(true); // Silent refresh
+        }
         startPolling();
       }
     };
@@ -207,8 +277,8 @@ export default function ArchivePage() {
       if (e.key === "kibble:archive:updated" && e.newValue) {
         try {
           const data = JSON.parse(e.newValue);
-          // Only refresh if the event is for the current tab
-          if (data.type === activeTab || data.type === "both") {
+          // Only refresh if the event is for the current tab and initial load is complete
+          if ((data.type === activeTab || data.type === "both") && hasInitialLoadRef.current) {
             fetchArchivedItems(true); // Silent refresh
           }
         } catch (err) {
@@ -225,8 +295,8 @@ export default function ArchivePage() {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
         const data = customEvent.detail;
-        // Only refresh if the event is for the current tab
-        if (data.type === activeTab || data.type === "both") {
+        // Only refresh if the event is for the current tab and initial load is complete
+        if ((data.type === activeTab || data.type === "both") && hasInitialLoadRef.current) {
           fetchArchivedItems(true); // Silent refresh
         }
       }
@@ -270,7 +340,7 @@ export default function ArchivePage() {
   const handleRestoreBoard = async (boardId: string) => {
     setRestoring(boardId);
     try {
-      const res = await fetch(`/api/boards/${boardId}/archive`, {
+      const res = await deduplicatedFetch(`/api/boards/${boardId}/archive`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to restore board");
@@ -293,7 +363,7 @@ export default function ArchivePage() {
   const handleRestoreTask = async (taskId: string) => {
     setRestoring(taskId);
     try {
-      const res = await fetch(`/api/tasks/${taskId}/archive`, {
+      const res = await deduplicatedFetch(`/api/tasks/${taskId}/archive`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to restore task");
@@ -315,7 +385,7 @@ export default function ArchivePage() {
 
   const handleExport = async (type: "boards" | "tasks") => {
     try {
-      const res = await fetch(`/api/archive/export?type=${type}`);
+      const res = await deduplicatedFetch(`/api/archive/export?type=${type}`);
       if (!res.ok) throw new Error("Failed to export");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -332,10 +402,71 @@ export default function ArchivePage() {
     }
   };
 
-  if (status === "loading" || loading) {
+  // Add timeout protection for stuck loading states
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  useEffect(() => {
+    if (loading && status === "authenticated") {
+      const timeout = setTimeout(() => {
+        setLoadingTimeout(true);
+        // Force reset loading state if stuck
+        isFetchingRef.current = false;
+        hasInitialLoadRef.current = false;
+        setLoading(false);
+        setError("Loading took too long. Please refresh the page or try again.");
+      }, 30000); // 30 seconds timeout
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [loading, status]);
+
+  if (status === "loading" || (loading && !loadingTimeout)) {
     return (
       <div className="min-h-screen-responsive bg-white dark:bg-black flex items-center justify-center w-full">
         <div className="text-black dark:text-white font-bold">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show error state if loading timed out
+  if (loadingTimeout && boards.length === 0 && tasks.length === 0) {
+    return (
+      <div className="min-h-screen-responsive bg-white dark:bg-black flex items-center justify-center w-full">
+        <div className="text-center max-w-md px-4">
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">
+            Loading timeout
+          </p>
+          <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">
+            The request took too long. Please try again.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => {
+                setLoadingTimeout(false);
+                isFetchingRef.current = false;
+                hasInitialLoadRef.current = false;
+                setLoading(true);
+                fetchArchivedItems(false, true);
+              }}
+              className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
+              type="button"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.location.reload();
+                }
+              }}
+              className="px-4 py-2 border border-black dark:border-white text-black dark:text-white rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-xs sm:text-sm font-bold"
+              type="button"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -14,6 +14,10 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
+  // Note: Buffer deprecation warnings from dependencies (qrcode, otplib, bcryptjs)
+  // are handled by using the latest versions of these packages.
+  // The warnings are non-blocking and don't affect functionality.
+  
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
@@ -21,7 +25,7 @@ const nextConfig = {
   
   // Experimental features for better performance
   experimental: {
-    optimizePackageImports: ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', 'framer-motion'],
+    optimizePackageImports: ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'framer-motion'],
   },
   
   // PWA and mobile optimizations

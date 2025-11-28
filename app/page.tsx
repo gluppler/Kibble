@@ -28,6 +28,7 @@ import { EditBoardDialog } from "@/components/edit-board-dialog";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { NotificationSystem } from "@/components/notification-system";
 import { logError } from "@/lib/logger";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 /**
  * Board interface - minimal board representation for list views
@@ -74,8 +75,9 @@ export default function Home() {
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
   const [deletingBoard, setDeletingBoard] = useState<Board | null>(null);
   
-  // Ref to track if boards have been loaded to prevent duplicate loads
+  // Refs to track loading state and prevent duplicate loads
   const hasLoadedBoards = useRef(false);
+  const isLoadingBoards = useRef(false);
 
   /**
    * Creates a default board if no boards exist
@@ -95,18 +97,22 @@ export default function Home() {
     setError(null);
 
     try {
-      const res = await fetch("/api/boards", {
+      const res = await deduplicatedFetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Default" }),
       });
 
+      // Clone response immediately to avoid body stream issues
+      const resClone = res.clone();
+
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await resClone.json().catch(() => ({}));
         const errorMessage = errorData.error || "Failed to create default board";
         throw new Error(errorMessage);
       }
 
+      // Read from original response (clone is for error handling only)
       const board = await res.json();
       
       // Update local state directly to avoid circular dependency
@@ -135,26 +141,41 @@ export default function Home() {
    * 3. Creates default board if no boards exist
    * 4. Persists selected board to localStorage
    * 
-   * Fixed: Removed boardId from dependencies to prevent infinite loops.
+   * Fixed: Removed boards.length from dependencies to prevent infinite loops.
    * Fixed: Added proper error handling and validation.
    * Fixed: Added ref tracking to prevent duplicate loads.
+   * Fixed: Added timeout protection to prevent stuck loading states.
    */
   const loadBoards = useCallback(async () => {
-    // Prevent duplicate loads only if boards are already loaded
-    // Allow reload if boards array is empty (e.g., after navigation)
-    if (hasLoadedBoards.current && boards.length > 0) {
-      return;
+    // Prevent duplicate concurrent loads
+    if (isLoadingBoards.current) {
+      return; // Already loading, skip
     }
-
+    
+    isLoadingBoards.current = true;
     setError(null);
     setLoading(true);
     hasLoadedBoards.current = true;
 
+    // Add timeout protection (30 seconds max)
+    const timeoutId = setTimeout(() => {
+      logError("[BOARD LOAD] Timeout loading boards - resetting state");
+      hasLoadedBoards.current = false;
+      isLoadingBoards.current = false;
+      setLoading(false);
+      setError("Request timed out. Please try again.");
+    }, 30000);
+
     try {
-      const res = await fetch("/api/boards/list");
+      const res = await deduplicatedFetch("/api/boards/list");
+      
+      clearTimeout(timeoutId);
+      
+      // Clone response for error handling (deduplicatedFetch already returns a clone)
+      const resClone = res.clone();
       
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await resClone.json().catch(() => ({}));
         const errorMessage = errorData.error || "Failed to load boards";
         
         // If unauthorized, redirect to sign in
@@ -166,10 +187,15 @@ export default function Home() {
         throw new Error(errorMessage);
       }
       
+      // Read response body
       const data = await res.json();
       const boardsList = Array.isArray(data.boards) ? data.boards : [];
       
+      // Update boards state
       setBoards(boardsList);
+      
+      // Mark as successfully loaded
+      hasLoadedBoards.current = true;
       
       // Set board as active, prioritizing saved selection
       if (boardsList.length > 0) {
@@ -210,16 +236,20 @@ export default function Home() {
         await createDefaultBoard();
       }
     } catch (error) {
-        logError("[BOARD LOAD] Error loading boards:", error);
+      clearTimeout(timeoutId);
+      logError("[BOARD LOAD] Error loading boards:", error);
       setError(error instanceof Error ? error.message : "Failed to load boards");
       // Clear invalid boardId
       setBoardId(null);
       if (typeof window !== "undefined") {
         localStorage.removeItem(BOARD_ID_STORAGE_KEY);
       }
-      // Reset ref on error to allow retry
+      // Reset refs on error to allow retry
       hasLoadedBoards.current = false;
+      isLoadingBoards.current = false;
     } finally {
+      clearTimeout(timeoutId);
+      isLoadingBoards.current = false;
       setLoading(false);
     }
   }, [createDefaultBoard, router]);
@@ -232,19 +262,25 @@ export default function Home() {
    * 
    * Fixed: Detects navigation to main page and resets loading state.
    * Fixed: Handles both component remount and navigation scenarios.
+   * Fixed: Removed boards.length from dependencies to prevent infinite loops.
+   * Fixed: Always reset refs when navigating to main page to ensure reload.
    */
   useEffect(() => {
     // When on main page (pathname === "/") and authenticated
     if (pathname === "/" && status === "authenticated") {
-      // Reset ref if boards are empty (user navigated back from another page)
-      // This ensures boards will reload when returning to main page
-      if (boards.length === 0) {
+      // Always reset refs when navigating to main page
+      // This ensures boards will reload when returning from other pages
+      // Check if we're returning from another page (boards might be empty or stale)
+      const shouldReset = boards.length === 0 || !hasLoadedBoards.current;
+      
+      if (shouldReset) {
         hasLoadedBoards.current = false;
-        // Also reset loading state to show loading indicator
+        isLoadingBoards.current = false;
         setLoading(true);
       }
     }
-  }, [pathname, status, boards.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, status]);
 
   /**
    * Authentication and board loading effect
@@ -256,6 +292,7 @@ export default function Home() {
    * Fixed: Load boards whenever authenticated and boards array is empty, regardless of ref state.
    * Fixed: Proper dependency array to prevent infinite loops.
    * Fixed: Also checks pathname to ensure we're on the main page before loading.
+   * Fixed: Removed loading from dependencies to prevent blocking.
    */
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -265,10 +302,17 @@ export default function Home() {
 
     // Only load boards when on main page and authenticated
     // This prevents loading boards when on other pages
-    if (pathname === "/" && status === "authenticated" && !hasLoadedBoards.current) {
-      loadBoards();
+    if (
+      pathname === "/" &&
+      status === "authenticated" &&
+      !isLoadingBoards.current
+    ) {
+      // Load if boards haven't been loaded or if boards array is empty
+      if (!hasLoadedBoards.current || boards.length === 0) {
+        loadBoards();
+      }
     }
-  }, [status, router, loadBoards, pathname]);
+  }, [status, router, loadBoards, pathname, boards.length]);
 
   /**
    * Handles board creation
@@ -286,18 +330,22 @@ export default function Home() {
         await loadBoards();
       }
 
-      const res = await fetch("/api/boards", {
+      const res = await deduplicatedFetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() }),
       });
 
+      // Clone response immediately to avoid body stream issues
+      const resClone = res.clone();
+      
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await resClone.json().catch(() => ({}));
         const errorMessage = errorData.error || "Failed to create board";
         throw new Error(errorMessage);
       }
 
+      // Read from original response (clone is for error handling only)
       const newBoard = await res.json();
 
       // Set the newly created board as active and persist first
@@ -362,7 +410,7 @@ export default function Home() {
    */
   const handleBoardArchive = useCallback(async (board: Board) => {
     try {
-      const response = await fetch(`/api/boards/${board.id}/archive`, {
+      const response = await deduplicatedFetch(`/api/boards/${board.id}/archive`, {
         method: "POST",
       });
 
@@ -416,7 +464,7 @@ export default function Home() {
     if (!deletingBoard) return;
 
     try {
-      const response = await fetch(`/api/boards/${deletingBoard.id}`, {
+      const response = await deduplicatedFetch(`/api/boards/${deletingBoard.id}`, {
         method: "DELETE",
       });
 
@@ -445,7 +493,26 @@ export default function Home() {
     }
   }, [deletingBoard, loadBoards]);
 
-  if (status === "loading" || loading || isCreatingDefault) {
+  // Add timeout for stuck loading states (show error after 35 seconds)
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  useEffect(() => {
+    if (loading && !isCreatingDefault) {
+      const timeout = setTimeout(() => {
+        setLoadingTimeout(true);
+        // Force reset loading state if stuck
+        hasLoadedBoards.current = false;
+        isLoadingBoards.current = false;
+        setLoading(false);
+        setError("Loading took too long. Please refresh the page or try again.");
+      }, 35000); // 35 seconds (slightly longer than API timeout)
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [loading, isCreatingDefault]);
+
+  if (status === "loading" || (loading && !loadingTimeout) || isCreatingDefault) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
         <motion.div
@@ -466,18 +533,25 @@ export default function Home() {
     return null; // Will redirect
   }
 
-  // Show error state if there's an error
-  if (error && boards.length === 0) {
+  // Show error state if there's an error or loading timeout
+  if ((error || loadingTimeout) && boards.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
         <div className="text-center max-w-md px-4">
-          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">Error loading boards</p>
-          <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">{error}</p>
+          <p className="text-black dark:text-white font-bold text-sm sm:text-base mb-2">
+            {loadingTimeout ? "Loading timeout" : "Error loading boards"}
+          </p>
+          <p className="text-xs text-black/60 dark:text-white/60 font-bold mb-4">
+            {loadingTimeout ? "The request took too long. Please try again." : error}
+          </p>
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => {
                 setError(null);
+                setLoadingTimeout(false);
                 hasLoadedBoards.current = false;
+                isLoadingBoards.current = false;
+                setLoading(true);
                 loadBoards();
               }}
               className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold"
@@ -486,11 +560,26 @@ export default function Home() {
               Retry
             </button>
             <button
-              onClick={() => setShowCreateDialog(true)}
+              onClick={() => {
+                setError(null);
+                setLoadingTimeout(false);
+                setShowCreateDialog(true);
+              }}
               className="px-4 py-2 border border-black dark:border-white text-black dark:text-white rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-xs sm:text-sm font-bold"
               type="button"
             >
               Create Board
+            </button>
+            <button
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.location.reload();
+                }
+              }}
+              className="px-4 py-2 border border-black dark:border-white text-black dark:text-white rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-xs sm:text-sm font-bold"
+              type="button"
+            >
+              Refresh Page
             </button>
           </div>
         </div>

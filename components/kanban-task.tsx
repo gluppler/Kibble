@@ -185,6 +185,8 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
       ref={setNodeRef}
       style={{
         ...style,
+        // Consistent border width across themes
+        borderWidth: '1px',
         // Ensure proper touch handling for drag-and-drop on mobile
         touchAction: isLocked ? 'auto' : 'none', // Prevent default touch behaviors to allow drag
       }}
@@ -201,7 +203,7 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
         duration: isDragging ? 0 : 0.2,
         opacity: { duration: isDragging ? 0 : 0.15 },
       }}
-      className={`bg-white dark:bg-black p-3 sm:p-3.5 rounded-lg border transition-all group relative ${
+      className={`bg-white dark:bg-black p-3 sm:p-3.5 rounded-lg border transition-all group relative mb-2 ${
         isLocked
           ? "border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 opacity-70 cursor-not-allowed"
           : isDragging
@@ -220,11 +222,11 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
       aria-label={`Task: ${task.title}`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 flex-1 min-w-0">
           {isLocked && (
-            <Lock size={12} className="text-black/40 dark:text-white/40 mt-0.5 flex-shrink-0" />
+            <Lock size={12} className="text-black/40 dark:text-white/40 flex-shrink-0" style={{ marginTop: '2px' }} />
           )}
-          <h3 className={`font-bold text-xs sm:text-sm flex-1 truncate ${
+          <h3 className={`font-bold text-xs sm:text-sm flex-1 truncate leading-tight ${
             isLocked 
               ? "text-black/40 dark:text-white/40 line-through" 
               : "text-black dark:text-white"
@@ -319,14 +321,14 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
       )}
       {dueDate && (
         <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
-          <Calendar size={14} className="text-black dark:text-white flex-shrink-0" />
-          <span>{formatDateToDDMMYYYY(dueDate)}</span>
+          <Calendar size={14} className="text-black dark:text-white flex-shrink-0" style={{ width: '14px', height: '14px' }} />
+          <span className="leading-tight">{formatDateToDDMMYYYY(dueDate)}</span>
         </div>
       )}
       {isLocked && timeUntilArchive && (
         <div className="flex items-center gap-1.5 text-xs text-black dark:text-white mt-2 pt-2 border-t border-black/10 dark:border-white/10 font-bold">
-          <Clock size={14} className="text-black dark:text-white flex-shrink-0" />
-          <span>Auto-archive in: {timeUntilArchive}</span>
+          <Clock size={14} className="text-black dark:text-white flex-shrink-0" style={{ width: '14px', height: '14px' }} />
+          <span className="leading-tight">Auto-archive in: {timeUntilArchive}</span>
         </div>
       )}
     </motion.div>

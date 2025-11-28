@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   DndContext,
@@ -42,6 +42,7 @@ import { BoardGridView } from "./board-grid-view";
 import { BoardListView } from "./board-list-view";
 import { useAlerts } from "@/contexts/alert-context";
 import { logError } from "@/lib/logger";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 /**
  * Props for KanbanBoard component
@@ -125,6 +126,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     })
   );
 
+  // Ref to prevent duplicate board fetches
+  const isFetchingBoardRef = useRef(false);
+
   /**
    * Fetches board data from the API
    * 
@@ -132,6 +136,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    * Fetches complete board structure including columns and tasks.
    * 
    * Fixed: Added proper error handling and validation.
+   * Fixed: Added request deduplication to prevent duplicate concurrent requests.
    */
   const fetchBoard = useCallback(async () => {
     if (!boardId) {
@@ -139,11 +144,22 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       return;
     }
 
+    // Prevent duplicate concurrent requests
+    if (isFetchingBoardRef.current) {
+      return;
+    }
+
+    isFetchingBoardRef.current = true;
     setLoading(true);
+    
     try {
-      const res = await fetch(`/api/boards/${boardId}`);
+      const res = await deduplicatedFetch(`/api/boards/${boardId}`);
+      
+      // Clone response for error handling
+      const resClone = res.clone();
       
       if (res.ok) {
+        // Read response body
         const data = await res.json();
         // Validate board data structure
         if (data && data.id && Array.isArray(data.columns)) {
@@ -153,8 +169,8 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           setBoard(null);
         }
       } else {
-        // Handle different error statuses
-        const errorData = await res.json().catch(() => ({}));
+        // Handle different error statuses - read from clone
+        const errorData = await resClone.json().catch(() => ({}));
         
         // If board not found or forbidden, clear board state
         if (res.status === 404 || res.status === 403) {
@@ -171,13 +187,17 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       setBoard(null);
       logError("[BOARD FETCH] Error fetching board:", error);
     } finally {
+      isFetchingBoardRef.current = false;
       setLoading(false);
     }
   }, [boardId]);
 
   useEffect(() => {
-    fetchBoard();
-  }, [fetchBoard]);
+    // Only fetch if boardId is set
+    if (boardId) {
+      fetchBoard();
+    }
+  }, [boardId, fetchBoard]);
 
   /**
    * Auto-archive effect for tasks in Done column
@@ -189,7 +209,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // Periodic archive cleanup interval
     const archiveInterval = setInterval(async () => {
       try {
-        await fetch("/api/tasks/cleanup", {
+        await deduplicatedFetch("/api/tasks/cleanup", {
           method: "POST",
         });
         // Refetch board after archive to reflect changes
@@ -202,7 +222,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // Initial archive cleanup on mount
     const initialArchive = async () => {
       try {
-        await fetch("/api/tasks/cleanup", {
+        await deduplicatedFetch("/api/tasks/cleanup", {
           method: "POST",
         });
         await fetchBoard();
@@ -345,7 +365,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
       // Update column order in database
       try {
-        const response = await fetch(`/api/columns/${activeId}`, {
+        const response = await deduplicatedFetch(`/api/columns/${activeId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ order: newOrder }),
@@ -532,7 +552,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // ========== DATABASE UPDATE ==========
     // Persist changes to database
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
+      const response = await deduplicatedFetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -699,7 +719,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    */
   const handleTaskArchive = useCallback(async (task: Task) => {
     try {
-      const response = await fetch(`/api/tasks/${task.id}/archive`, {
+      const response = await deduplicatedFetch(`/api/tasks/${task.id}/archive`, {
         method: "POST",
       });
 
@@ -730,7 +750,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     if (!deletingTask) return;
 
     try {
-      const response = await fetch(`/api/tasks/${deletingTask.id}`, {
+      const response = await deduplicatedFetch(`/api/tasks/${deletingTask.id}`, {
         method: "DELETE",
       });
 
@@ -830,7 +850,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-black w-full min-w-0 overflow-hidden">
       <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-b border-black/10 dark:border-white/10 bg-white dark:bg-black lg:pl-6 w-full flex-shrink-0">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           <motion.h1
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -839,7 +859,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           >
             {board.title}
           </motion.h1>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center">
             <LayoutSelector />
           </div>
         </div>

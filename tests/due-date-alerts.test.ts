@@ -206,25 +206,24 @@ describe('Due Date Alerts Feature', () => {
     it('should create notification with correct options for urgent alert', () => {
       const notification = new Notification('Urgent Task Due Soon', {
         body: 'Task "Urgent Task" is due in 1 day',
-        icon: '/icon-192x192.png',
+        icon: '/icon-192.png',
         tag: 'task-urgent-1',
         requireInteraction: true,
-        badge: '/badge-72x72.png',
       });
 
       expect(notification).toBeDefined();
       expect(notification.title).toBe('Urgent Task Due Soon');
       expect(notification.options?.body).toBe('Task "Urgent Task" is due in 1 day');
       expect(notification.options?.tag).toBe('task-urgent-1');
+      expect(notification.options?.icon).toBe('/icon-192.png');
     });
 
     it('should create notification with correct options for completion alert', () => {
       const notification = new Notification('Task Completed!', {
         body: 'Congratulations! "Completed Task" has been moved to Done',
-        icon: '/icon-192x192.png',
+        icon: '/icon-192.png',
         tag: 'task-completed-5',
         requireInteraction: false,
-        badge: '/badge-72x72.png',
       });
 
       expect(notification).toBeDefined();

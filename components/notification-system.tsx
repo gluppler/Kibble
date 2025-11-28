@@ -20,6 +20,7 @@ import { Bell, X, AlertCircle, Calendar, CheckCircle2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useAlerts } from "@/contexts/alert-context";
 import { logError, logWarn } from "@/lib/logger";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 import type { Alert } from "@/lib/alert-utils";
 
 export function NotificationSystem() {
@@ -59,7 +60,9 @@ export function NotificationSystem() {
       try {
         // Optimized: Fetch all tasks with due dates in a single API call
         // This avoids N+1 queries (fetching each board individually)
-        const tasksRes = await fetch("/api/tasks/alerts");
+        // Uses request deduplication to prevent duplicate concurrent requests
+        const tasksRes = await deduplicatedFetch("/api/tasks/alerts");
+        
         if (!tasksRes.ok) {
           // If unauthorized, stop checking
           if (tasksRes.status === 401 || tasksRes.status === 403) {
@@ -69,6 +72,7 @@ export function NotificationSystem() {
           return;
         }
 
+        // Read response body (deduplicatedFetch already handles cloning)
         const data = await tasksRes.json();
         
         // Safety check: ensure data is valid and has tasks array
@@ -102,11 +106,14 @@ export function NotificationSystem() {
       }
     };
 
-    checkDueDates();
-    // Check every 5 minutes
-    const interval = setInterval(checkDueDates, 5 * 60 * 1000);
+    // Only check if session is authenticated
+    if (session?.user?.id) {
+      checkDueDates();
+      // Check every 5 minutes (reduced from immediate + interval to just interval)
+      const interval = setInterval(checkDueDates, 5 * 60 * 1000);
 
-    return () => clearInterval(interval);
+      return () => clearInterval(interval);
+    }
   }, [session, checkTaskForAlert]);
 
   /**

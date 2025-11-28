@@ -23,6 +23,7 @@ import { logError } from "@/lib/logger";
 import { KanbanTask } from "./kanban-task";
 import { useAlerts } from "@/contexts/alert-context";
 import { getDateInputFormatHint } from "@/lib/date-utils";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 /**
  * Props for KanbanColumn component
@@ -119,7 +120,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
 
     try {
       // Create task via API
-      const response = await fetch("/api/tasks", {
+      const response = await deduplicatedFetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -177,20 +178,22 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
       style={{ 
         maxWidth: '100%',
         width: '100%',
+        minHeight: '200px',
         height: '100%',
+        borderWidth: '1px', // Consistent border width across themes
         // Ensure proper touch handling for drag-and-drop
         touchAction: 'none', // Prevent default touch behaviors to allow drag
       }}
     >
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-black/10 dark:border-white/10 flex-shrink-0">
-        <h2 className="font-bold text-sm sm:text-base text-black dark:text-white truncate flex-1">
+      <div className="flex items-baseline justify-between mb-3 pb-2 border-b border-black/10 dark:border-white/10 flex-shrink-0">
+        <h2 className="font-bold text-sm sm:text-base text-black dark:text-white truncate flex-1 leading-tight">
           {column.title}
         </h2>
-        <span className="px-2 py-0.5 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded ml-2 flex-shrink-0">
+        <span className="px-2 py-0.5 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded ml-2 flex-shrink-0 leading-tight">
           {column.tasks.length}
         </span>
       </div>
-      <div className="space-y-2 overflow-y-auto scrollbar-thin overflow-x-hidden">
+      <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin overflow-x-hidden min-h-0">
         {sortedTasks.length === 0 && !isAddingTask ? (
           <div className="text-center py-6 px-2">
             <p className="text-xs text-black/40 dark:text-white/40 font-bold">No tasks</p>
@@ -213,7 +216,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
           </SortableContext>
         )}
         {isAddingTask ? (
-          <form onSubmit={handleAddTask} className="space-y-2 flex-shrink-0">
+          <form onSubmit={handleAddTask} className="space-y-2 flex-shrink-0 mt-2">
             {taskError && (
               <div className="p-2 bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 rounded-lg text-xs text-black dark:text-white font-bold">
                 {taskError}
@@ -239,7 +242,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
               rows={2}
               className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent resize-none transition-all text-xs sm:text-sm font-bold"
             />
-            <div>
+            <div className="relative">
               <motion.input
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -248,7 +251,10 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
                 value={taskDueDate}
                 onChange={(e) => setTaskDueDate(e.target.value)}
                 title={`Due date (optional) - Format: ${getDateInputFormatHint()}`}
-                className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
+                className="w-full px-2.5 sm:px-3 py-2 pr-10 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
+                style={{
+                  paddingRight: '2.5rem',
+                }}
               />
               <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
                 Format: {getDateInputFormatHint()}
@@ -258,11 +264,11 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="flex gap-2"
+              className="flex gap-2 items-center"
             >
               <button
                 type="submit"
-                className="flex-1 px-2.5 sm:px-3 py-2.5 sm:py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold shadow-sm hover:shadow-md min-h-[44px] sm:min-h-0"
+                className="flex-1 px-2.5 sm:px-3 py-2.5 sm:py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold shadow-sm hover:shadow-md min-h-[44px] sm:min-h-[36px] flex items-center justify-center"
               >
                 Add
               </button>
@@ -275,7 +281,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
                   setTaskDueDate("");
                   setTaskError("");
                 }}
-                className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold min-h-[44px] sm:min-h-0"
+                className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-white dark:bg-black border border-black/20 dark:border-white/20 text-black dark:text-white rounded-lg hover:opacity-80 transition-opacity text-xs sm:text-sm font-bold min-h-[44px] sm:min-h-[36px] flex items-center justify-center"
               >
                 Cancel
               </button>

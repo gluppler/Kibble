@@ -1,7 +1,7 @@
 {
-  "name": "Kibble - Kanban Board",
+  "name": "Kibble - Task Management",
   "short_name": "Kibble",
-  "description": "A minimalist drag-and-drop kanban board for organizing coursework and managing academic deadlines",
+  "description": "A modern, full-stack task management application with class-based boards, intelligent alerts, and a beautiful Kanban interface",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

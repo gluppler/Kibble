@@ -61,7 +61,15 @@ export async function GET() {
       orderBy: { archivedAt: "desc" },
     });
 
-    return NextResponse.json({ tasks });
+    return NextResponse.json(
+      { tasks },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error fetching archived tasks:", error);
     return NextResponse.json(

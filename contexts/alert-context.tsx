@@ -137,10 +137,10 @@ export function AlertProvider({ children }: { children: ReactNode }) {
         
         showBrowserNotification(title, {
           body,
-          icon: '/icon-192x192.png',
+          icon: '/icon-192.png', // Use PNG icon for better browser notification support
           tag: notificationTag, // Stable tag prevents duplicate browser notifications
           requireInteraction: alert.type === 'urgent' || alert.color === 'red',
-          badge: '/badge-72x72.png',
+          badge: '/icon-192.png', // Use same icon as badge (badge is optional but improves notification appearance)
         });
       }
 

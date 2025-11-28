@@ -153,8 +153,8 @@ export const BoardGridView = memo(function BoardGridView({ board, onTaskEdit, on
                   </div>
                   {dueDate && (
                     <div className="flex items-center gap-1 text-xs text-black/50 dark:text-white/50 font-bold">
-                      <Calendar size={10} />
-                      <span>{formatDateToDDMMYYYY(dueDate)}</span>
+                      <Calendar size={10} className="text-black/50 dark:text-white/50 flex-shrink-0" style={{ width: '10px', height: '10px' }} />
+                      <span className="leading-tight">{formatDateToDDMMYYYY(dueDate)}</span>
                     </div>
                   )}
                 </div>

@@ -101,12 +101,16 @@ export async function GET() {
     }));
 
     // Return boards with security headers
+    // Note: Cache-Control is set to no-store to prevent stale data
+    // Request deduplication on client-side prevents duplicate requests
     return NextResponse.json(
       { boards: sanitizedBoards },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
           "X-Content-Type-Options": "nosniff",
+          // Add ETag for conditional requests (client can use this for deduplication)
+          "ETag": `"${sanitizedBoards.length}-${Date.now()}"`,
         },
       }
     );
