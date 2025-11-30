@@ -34,11 +34,28 @@ export async function POST(request: Request) {
 
     const trimmedTitle = title.trim();
 
+    // Get the maximum position for user's boards to set new board position
+    const maxPositionResult = await db.board.findFirst({
+      where: {
+        userId: session.user.id,
+        archived: false,
+      },
+      select: {
+        position: true,
+      },
+      orderBy: {
+        position: "desc",
+      },
+    });
+
+    const newPosition = maxPositionResult ? maxPositionResult.position + 1 : 0;
+
     // Don't include tasks since they're empty on creation (using select)
     const board = await db.board.create({
       data: {
         title: trimmedTitle,
         userId: session.user.id,
+        position: newPosition,
         columns: {
           create: [
             { title: "To-Do", order: 0 },
@@ -72,6 +89,7 @@ export async function POST(request: Request) {
     const responseBoard = {
       id: board.id,
       title: board.title,
+      position: newPosition,
       createdAt: board.createdAt,
       updatedAt: board.updatedAt,
     };

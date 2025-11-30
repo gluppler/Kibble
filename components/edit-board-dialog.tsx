@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { markUserInteraction } from "@/lib/interaction-detector";
 
 interface EditBoardDialogProps {
   isOpen: boolean;
@@ -27,7 +28,6 @@ export function EditBoardDialog({
   useEffect(() => {
     if (boardTitle) {
       setTitle(boardTitle);
-      setError("");
     }
   }, [boardTitle]);
 
@@ -102,7 +102,12 @@ export function EditBoardDialog({
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+              <form 
+                onSubmit={handleSubmit} 
+                onFocus={() => markUserInteraction()}
+                onClick={() => markUserInteraction()}
+                className="space-y-3 sm:space-y-4"
+              >
                 <div>
                   <label
                     htmlFor="edit-board-title"

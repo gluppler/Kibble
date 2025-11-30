@@ -192,6 +192,7 @@ model Board {
   id         String   @id @default(cuid())
   title      String
   userId     String
+  position   Int      @default(0) // Sort order for drag-and-drop reordering
   archived   Boolean  @default(false)
   archivedAt DateTime?
   createdAt  DateTime @default(now())
@@ -202,8 +203,11 @@ model Board {
   @@index([userId])
   @@index([archived])
   @@index([archivedAt])
+  @@index([position]) // For efficient sorting by position
   // Composite index for common query pattern: user's non-archived boards
   @@index([userId, archived])
+  // Composite index for sorting user's boards by position
+  @@index([userId, archived, position])
 }
 
 /**

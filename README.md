@@ -19,8 +19,8 @@ Kibble was developed following these key principles:
 
 - **Security-First Approach**: All features are built with security and validation at every layer
 - **Type Safety**: Full TypeScript implementation with strict mode for compile-time safety
-- **Test-Driven Development**: Comprehensive test suite with 462 test cases covering edge cases
-- **Clean Code Practices**: Maintainable, readable code following industry best practices
+- **Test-Driven Development**: Comprehensive test suite with 479 test cases (484 total including skipped) covering edge cases
+- **Clean Code Practices**: Maintainable, readable code following industry best practices with regular cleanup and optimization
 - **Feature Completeness**: Core functionality prioritized over UI/UX enhancements
 - **Iterative Refinement**: Continuous improvement with focus on reliability and performance
 
@@ -65,6 +65,8 @@ The application emphasizes:
 - **Real-time Synchronization**: Archive changes sync across tabs and sessions instantly
 - **Persistent Selection**: Board selection persists across page refreshes using localStorage
 - **Board Search**: Real-time search functionality in sidebar to quickly find boards
+- **Board Menu**: Three-dots menu (Edit, Archive, Delete) with proper z-index handling for selected boards
+- **Board Reordering**: Drag-and-drop reordering of boards/classes in sidebar with persistent position storage
 
 ### 📋 Kanban Board & Multiple Views
 
@@ -79,6 +81,7 @@ The application emphasizes:
 - **Responsive Design**: Columns automatically wrap vertically on mobile and when window is resized
 - **Optimistic UI**: Instant feedback with no page refreshes during drag-and-drop operations
 - **Task Search**: Real-time search and filtering of tasks within boards
+- **Task Menu**: Three-dots menu (Edit, Archive, Delete) with proper z-index handling for selected tasks
 
 ### 🏷️ Priority Tagging System
 
@@ -123,8 +126,12 @@ The application emphasizes:
 - **Completion Alerts**: Celebrate task completions with visual feedback
 - **Smart Notifications**: Contextual alerts based on task status and deadlines
 - **Browser Notifications**: Native browser notifications with permission management
-- **Alert Persistence**: Alerts persist across page refreshes
-- **Visibility API Integration**: Optimizes alert checking when tab is hidden
+- **Notification Preferences**: User-configurable preferences for alerts (global, due date, completion)
+- **Preference-Aware**: Alerts respect user notification preferences (disabled alerts never shown)
+- **Alert Persistence**: Alerts persist across page refreshes in alert context
+- **Visibility API Integration**: Optimizes alert checking when tab is hidden (pauses when tab is not visible)
+- **Intelligent Polling**: Background polling every 10 minutes (only when tab is visible and preferences enabled)
+- **Immediate Checks**: Alert checks run immediately on task creation/edit with due dates
 - **Duplicate Prevention**: Stable alert IDs prevent duplicate notifications
 - **Robust Validation**: Comprehensive validation prevents errors from invalid alert data
 
@@ -147,14 +154,21 @@ The application emphasizes:
 - **Dark Mode**: Beautiful dark and light themes with system preference detection
 - **Responsive Design**: Fully responsive design that works seamlessly on desktop, tablet, and mobile
 - **Mobile-First**: Optimized for mobile with proper touch targets and responsive column wrapping
+- **Mobile Menu**: Enhanced hamburger menu with smooth animations and single close button
+- **Interaction Detection**: Intelligent polling pauses during user interactions (clicks, keyboard, forms, dragging) to prevent workflow disruption
+- **Polling Optimization**: Board polling every 20 seconds (only when visible and not interacting), alert polling every 10 minutes
 - **Smooth Animations**: Polished UI with Framer Motion animations
+- **Theme Transitions**: Smooth theme switching with requestAnimationFrame for optimal performance
 - **Real-time Updates**: Optimistic UI updates for instant feedback without page refreshes
 - **Accessibility**: ARIA labels, keyboard navigation support, and proper semantic HTML
 - **Locale-Aware Dates**: Date picker shows format hints based on user's locale
+- **Cross-Browser Date Picker**: Uses react-datepicker for consistent date/time selection across all browsers (Chrome, Firefox, Safari, Edge)
 - **Minimal Design**: Clean, minimal interface with high contrast black & white theme
 - **PWA Support**: Progressive Web App with service worker and install prompt
+- **PWA Install Prompt**: Respects user notification preferences - only shows when notifications are enabled
 - **Icon Generation**: Automated PNG icon generation from SVG source
 - **SEO Optimized**: Comprehensive metadata for search engines and social sharing
+- **Dropdown Menus**: Three-dots menus (Edit, Archive, Delete) with proper z-index handling for selected items
 
 ## 🛠️ Tech Stack
 
@@ -177,6 +191,7 @@ The application emphasizes:
 - **Zod 4.1** - Runtime schema validation
 - **otplib** - TOTP (Time-based One-Time Password) for MFA
 - **qrcode** - QR code generation for MFA setup
+- **react-datepicker 8.10** - Cross-browser date and time picker with consistent icon visibility
 
 ### Drag & Drop
 
@@ -368,7 +383,9 @@ kibble/
 │   ├── edit-board-dialog.tsx     # Board editing dialog
 │   ├── edit-task-dialog.tsx      # Task editing dialog
 │   ├── delete-confirmation-dialog.tsx # Delete confirmation
-│   ├── pwa-install-prompt.tsx    # PWA install prompt
+│   ├── pwa-install-prompt.tsx    # PWA install prompt (respects notifications)
+│   ├── date-picker.tsx           # Cross-browser date/time picker
+│   ├── loading-spinner.tsx        # Loading spinner component
 │   └── orientation-handler.tsx    # Mobile orientation handling
 ├── contexts/                       # React contexts
 │   ├── alert-context.tsx          # Alert management context
@@ -389,6 +406,8 @@ kibble/
 │   ├── logger.ts                  # Centralized logging (dev only)
 │   ├── request-deduplication.ts   # Request deduplication utility
 │   ├── search-utils.ts            # Search and filter utilities
+│   ├── interaction-detector.ts    # User interaction detection for polling
+│   ├── suppress-buffer-deprecation.ts # Buffer deprecation warning suppression
 │   └── types.ts                   # TypeScript type definitions
 ├── prisma/                         # Database schema
 │   ├── schema.prisma              # Prisma schema definition
@@ -440,14 +459,15 @@ Security, validation, and testable code are enforced at every layer.
 
 1. **Authentication**: User signs in via NextAuth.js → JWT session created
 2. **MFA (Optional)**: User can enable TOTP-based MFA for additional security
-3. **Board Selection**: User selects a board → Board data fetched from API
+3. **Board Selection**: User selects a board → Board data fetched from API (ordered by position)
 4. **Task Management**: User creates/edits/moves tasks → Optimistic UI updates → Database persistence
-5. **Search & Filter**: Real-time search and filtering across tasks and boards
+5. **Search & Filter**: Real-time client-side search and filtering across tasks and boards
 6. **Priority Management**: Set and filter tasks by priority (Normal/High)
-7. **Alerts**: System checks due dates → Alerts generated → Browser notifications shown
+7. **Alerts**: System checks due dates (immediate on create/edit, polling every 10 min) → Preference check → Alerts generated → Browser notifications shown
 8. **Auto-Archive**: Background process archives tasks in Done column after 24 hours
 9. **Archive Management**: Users can manually archive/restore tasks and boards
 10. **Board Archive**: Archiving a board automatically archives all its tasks
+11. **Board Reordering**: Drag-and-drop reordering of boards with persistent position storage
 
 ### State Management
 
@@ -471,6 +491,10 @@ User Action → Component → API Route → Permission Check → Database → Re
 - **Permission Layering**: Authentication → Ownership → Resource validation
 - **Event-Driven Architecture**: Cross-tab synchronization via localStorage events
 - **Memoization**: Extensive use of `useMemo`, `useCallback`, and `React.memo` for performance
+- **Selective Data Fetching**: Uses Prisma `select` to fetch only needed fields, reducing data transfer
+- **Query Limits**: `take: 50` limits on queries to optimize for constrained resources (0.5GB RAM, 8GB disk)
+- **Interaction Detection**: Pauses polling during user interactions to prevent workflow disruption
+- **Visibility API**: Pauses background operations when tab is hidden to reduce server load
 
 ## 🎯 Development Approach
 
@@ -497,7 +521,8 @@ Kibble was developed following a **principled, secure-code-first mindset**, focu
 4. **Iterative Refinement & Security**
    - Each component developed with maintainability, testability, and security in mind
    - Continuous code cleanup, optimization, and redundancy removal
-   - Comprehensive test coverage (462 tests) ensuring reliability
+   - Comprehensive test coverage (479 passing tests, 484 total) ensuring reliability
+   - Regular codebase cleanup to remove redundant code, unused imports, and optimize functions
 
 5. **Code Quality Standards**
    - Strict TypeScript with no `any` types
@@ -513,54 +538,66 @@ Kibble was developed following a **principled, secure-code-first mindset**, focu
 flowchart TD
     A[User selects board] --> B[User creates task in To-Do column]
     B --> C{Input validation}
-    C -->|Valid| D[Store task with priority in database]
-    D --> E[Update UI with optimistic update]
-    E --> F[API confirms success]
-    F --> G[Task appears in board]
     C -->|Invalid| H[Show validation error]
-    G --> I[User can drag & drop between columns]
-    I --> J{Column is Done?}
-    J -->|Yes| K[Task locks & movedToDoneAt timestamp]
-    K --> L[Auto-archive after 24 hours]
-    J -->|No| M[Task remains editable]
+    C -->|Valid| D{Column ownership check}
+    D -->|Failed| I[Show permission error]
+    D -->|Passed| E[Store task with priority in database]
+    E --> F[Check for due date alert immediately]
+    F --> G[Update UI with optimistic update via callback]
+    G --> H2[API confirms success]
+    H2 --> I2[Task appears in board]
+    I2 --> J[User can drag & drop between columns]
+    J --> K{Column is Done?}
+    K -->|Yes| L[Task locks & movedToDoneAt timestamp]
+    L --> M[Auto-archive after 24 hours]
+    K -->|No| N[Task remains editable]
 ```
 
 ### Search & Filter Flow
 
 ```mermaid
 flowchart TD
-    A[User types in search bar] --> B[Real-time query normalization]
-    B --> C[Fuzzy matching across fields]
-    C --> D{Filter options selected?}
-    D -->|Yes| E[Apply priority/type filters]
-    D -->|No| F[Search all fields]
-    E --> G[Filter results]
-    F --> G
-    G --> H{Results found?}
-    H -->|Yes| I[Display filtered tasks/boards]
-    H -->|No| J[Show empty state message]
-    I --> K[User can interact with results]
+    A[User types in search bar] --> B[Real-time search - no debouncing]
+    B --> C[Client-side query normalization]
+    C --> D[Fuzzy matching across fields]
+    D --> E{Filter options selected?}
+    E -->|Yes| F[Apply priority/type filters]
+    E -->|No| G[Search all fields]
+    F --> H[Filter results using searchTasks/searchBoards]
+    G --> H
+    H --> I{Results found?}
+    I -->|Yes| J[Display filtered tasks/boards immediately]
+    I -->|No| K[Show empty state message]
+    J --> L[User can interact with results]
+    style B fill:#e1f5ff
+    style H fill:#e1f5ff
 ```
 
 ### Archive & Restore Flow
 
 ```mermaid
 flowchart TD
-    A[User archives board] --> B[Transaction: Archive board + all tasks]
-    B --> C[Update archived flags & timestamps]
-    C --> D[Emit archive event]
-    D --> E[Update UI across all tabs]
-    E --> F[Board appears in Archive page]
-    F --> G{User wants to restore?}
-    G -->|Yes| H{Board or task?}
-    H -->|Board| I[Transaction: Restore board + all tasks]
-    H -->|Task| J{Task's board archived?}
-    J -->|Yes| K[Show error: Restore board first]
-    J -->|No| L[Restore task]
-    I --> M[Emit restore event]
-    L --> M
-    M --> N[Update UI immediately]
-    K --> O[User must restore board first]
+    A{Archive action?} -->|Board| B[User archives board]
+    A -->|Task| C[User archives task manually]
+    B --> D[Transaction: Archive board + all tasks]
+    C --> E[Archive single task]
+    D --> F[Update archived flags & timestamps]
+    E --> F
+    F --> G[Emit archive event via localStorage]
+    G --> H[Update UI across all tabs]
+    H --> I[Item appears in Archive page]
+    I --> J{User wants to restore?}
+    J -->|Yes| K{Board or task?}
+    K -->|Board| L[Transaction: Restore board + all tasks]
+    K -->|Task| M{Task's board archived?}
+    M -->|Yes| N[Show error: Restore board first]
+    M -->|No| O[Restore task]
+    L --> P[Emit restore event via localStorage]
+    O --> P
+    P --> Q[Update UI immediately without refresh]
+    N --> R[User must restore board first]
+    style G fill:#e1f5ff
+    style P fill:#e1f5ff
 ```
 
 ### Alert Generation Flow
@@ -569,35 +606,46 @@ flowchart TD
 flowchart TD
     A[User sets/edits due date] --> B[System validates due date]
     B -->|Valid| C[Store due date in database]
-    C --> D[Background scheduler checks tasks]
+    C --> D[Immediate alert check on creation/edit]
     D --> E{Task due soon or overdue?}
-    E -->|Yes| F[Generate alert]
-    E -->|No| G[Wait until next check]
-    F --> H[Check browser notification permission]
-    H -->|Granted| I[Show browser notification]
-    H -->|Denied| J[Show in-app alert]
-    I --> K[Alert persists across refreshes]
-    J --> K
-    G --> D
+    E -->|Yes| F[Check notification preferences]
+    E -->|No| G[Background polling every 10 minutes]
+    F -->|Enabled| H[Generate alert in alert context]
+    F -->|Disabled| I[Skip alert generation]
+    H --> J[Check browser notification permission]
+    J -->|Granted| K[Show browser notification]
+    J -->|Denied| L[Show in-app alert only]
+    K --> M[Alert persists in alert context]
+    L --> M
+    G --> N[Check tasks via /api/tasks/alerts]
+    N --> E
+    style D fill:#e1f5ff
+    style F fill:#e1f5ff
+    style M fill:#e1f5ff
 ```
 
 ### Authentication & MFA Flow
 
 ```mermaid
 flowchart TD
-    A[User attempts login] --> B[NextAuth validates credentials]
-    B -->|Invalid| C[Show error message]
+    A[User attempts login] --> B[Check MFA status via /api/auth/check-mfa]
+    B -->|Invalid credentials| C[Show error message]
     B -->|Valid| D{MFA enabled?}
-    D -->|No| E[Create session & redirect]
-    D -->|Yes| F[Request TOTP code]
+    D -->|No| E[NextAuth signIn with credentials]
+    D -->|Yes| F[Prompt for TOTP code]
     F --> G[User enters code]
-    G --> H{Code valid?}
-    H -->|Yes| E
-    H -->|No| I{Backup code?}
+    G --> H[Verify via /api/auth/mfa/login]
+    H -->|Invalid| I{Backup code?}
     I -->|Yes| J[Validate backup code]
     I -->|No| C
-    J -->|Valid| E
+    J -->|Valid| K[Remove used backup code]
     J -->|Invalid| C
+    K --> E
+    H -->|Valid TOTP| E
+    E -->|Success| L[Create session & redirect]
+    E -->|Error| C
+    style B fill:#e1f5ff
+    style H fill:#e1f5ff
 ```
 
 ## 🔌 API Documentation
@@ -676,7 +724,7 @@ Exports archived tasks and/or boards to CSV format.
 ### Board Routes
 
 #### `GET /api/boards/list`
-Returns all user's active (non-archived) boards, ordered by creation date.
+Returns all user's active (non-archived) boards, ordered by position (asc), then creation date (asc).
 
 #### `POST /api/boards`
 Creates new board with default columns (To-Do, In-Progress, Review, Done).
@@ -689,7 +737,7 @@ Creates new board with default columns (To-Do, In-Progress, Review, Done).
 ```
 
 #### `GET /api/boards/[id]`
-Fetches board with all columns and tasks (excludes archived tasks).
+Fetches board with all columns and tasks (excludes archived tasks). Limits to 50 tasks per column for performance optimization.
 
 #### `PATCH /api/boards/[id]`
 Updates board title (requires ownership).
@@ -725,6 +773,25 @@ Unarchives (restores) board and **all its tasks** in a single transaction. Retur
 
 #### `GET /api/boards/user`
 Returns user's first board (by creation date) for initial selection.
+
+#### `POST /api/boards/reorder`
+Updates board positions based on drag-and-drop reordering.
+
+**Request Body**:
+```json
+{
+  "boardIds": ["board-id-1", "board-id-2", "board-id-3"]
+}
+```
+
+**Response**:
+```json
+{
+  "success": true
+}
+```
+
+**Security**: Validates all board IDs belong to authenticated user to prevent IDOR attacks.
 
 ### Task Routes
 
@@ -776,7 +843,7 @@ Returns tasks with due dates that need alerts (used by notification system).
 ### Column Routes
 
 #### `POST /api/columns`
-Creates new column in a board.
+Creates new column in a board. Returns column with up to 50 tasks (non-archived) for performance optimization.
 
 #### `PATCH /api/columns/[id]`
 Updates column order (used for drag-and-drop reordering).
@@ -788,6 +855,29 @@ Deletes user account and all associated data (requires password re-authenticatio
 
 #### `GET /api/user/notifications`
 Returns user's notification preferences.
+
+**Response**:
+```json
+{
+  "notificationsEnabled": true,
+  "dueDateAlertsEnabled": true,
+  "completionAlertsEnabled": true
+}
+```
+
+#### `PATCH /api/user/notifications`
+Updates user's notification preferences.
+
+**Request Body** (all fields optional):
+```json
+{
+  "notificationsEnabled": true,
+  "dueDateAlertsEnabled": true,
+  "completionAlertsEnabled": true
+}
+```
+
+**Response**: Updated notification preferences
 
 ## 🗄️ Database Schema
 
@@ -801,6 +891,9 @@ Returns user's notification preferences.
 - `mfaEnabled`: Multi-factor authentication flag
 - `mfaSecret`: Encrypted TOTP secret (optional)
 - `mfaBackupCodes`: JSON array of hashed backup codes (optional)
+- `notificationsEnabled`: Global notification toggle (default: true)
+- `dueDateAlertsEnabled`: Due date alerts toggle (default: true)
+- `completionAlertsEnabled`: Completion alerts toggle (default: true)
 - Relations: `boards`, `accounts`, `sessions`, `passwordResetTokens`
 - Indexes: `email` (unique)
 
@@ -808,10 +901,11 @@ Returns user's notification preferences.
 - `id`: Unique identifier
 - `title`: Board name
 - `userId`: Owner reference
+- `position`: Sort order for drag-and-drop reordering (default: 0)
 - `archived`: Boolean flag
 - `archivedAt`: Timestamp when archived
 - Relations: `columns`, `user`
-- Indexes: `userId`, `archived`, `archivedAt`
+- Indexes: `userId`, `archived`, `archivedAt`, `position`, `userId_archived`, `userId_archived_position`
 
 #### Column
 - `id`: Unique identifier
@@ -894,7 +988,7 @@ All relationships use `onDelete: Cascade` for automatic cleanup.
 
 ### Test Suite
 
-Kibble includes a comprehensive test suite with **462 test cases** (457 passing, 5 skipped):
+Kibble includes a comprehensive test suite with **479 passing test cases** (484 total including 5 skipped):
 
 - **Authentication Tests** (`auth.test.ts`): User registration and authentication
 - **Security Tests** (`auth-security.test.ts`): Security edge cases (5 skipped)
@@ -943,7 +1037,7 @@ npm run test:coverage
 
 ### Vercel (Recommended)
 
-Kibble is optimized for Vercel serverless deployment.
+Kibble is optimized for Vercel serverless deployment with resource constraints in mind (4 vCores, 8GB RAM server, 0.5GB RAM, 8GB disk database).
 
 **Configuration** (`vercel.json`):
 ```json
@@ -981,6 +1075,19 @@ Kibble is optimized for Vercel serverless deployment.
 3. **Next.js Build**: Compiles application with Turbopack
 4. **Optimization**: Tree-shaking, code splitting, image optimization
 
+### Performance Optimizations
+
+Kibble is optimized for constrained serverless and database environments:
+
+- **Selective Data Fetching**: Uses Prisma `select` to fetch only needed fields
+- **Query Limits**: `take: 50` limits on queries to reduce memory usage
+- **Request Deduplication**: Prevents duplicate concurrent API calls
+- **Optimistic UI Updates**: Immediate feedback without waiting for server
+- **Intelligent Polling**: Pauses during interactions and when tab is hidden
+- **Memoization**: Extensive use of React memoization hooks
+- **API Timing Logging**: Monitors cold-start delays for optimization
+- **Caching Headers**: Appropriate cache-control headers for API responses
+
 ## 🛠️ Development
 
 ### Available Scripts
@@ -998,7 +1105,8 @@ npm run db:migrate   # Run migrations
 npm run db:push      # Push schema (dev only)
 npm run db:studio    # Open Prisma Studio
 npm run db:test      # Test database connection
-npm run db:cleanup   # Cleanup database (dev only)
+npm run db:cleanup   # Cleanup database (dev only, dry-run)
+npm run db:cleanup:apply # Cleanup database (dev only, applies changes)
 
 # Icons
 npm run generate:icons # Generate PWA icons from SVG
@@ -1029,6 +1137,8 @@ npm run test:coverage # Run with coverage
 - **Type Safety**: Centralize type definitions to avoid duplication
 - **Security First**: All permission checks server-side, input validation on all routes
 - **Code Cleanliness**: No redundancies, optimized functions, clean patterns
+- **Optimistic UI Updates**: Immediate UI feedback with server synchronization for better UX
+- **Request Deduplication**: Prevents duplicate concurrent API calls for performance
 
 ## 🐛 Troubleshooting
 

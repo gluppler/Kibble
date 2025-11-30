@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
@@ -47,6 +47,7 @@ interface KanbanTaskProps {
 export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, onDelete, onArchive }: KanbanTaskProps) {
   // State for menu visibility
   const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   // State for auto-archive countdown
   const [timeUntilArchive, setTimeUntilArchive] = useState<string | null>(null);
   
@@ -71,6 +72,7 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: isDragging ? "none" : transition,
+    zIndex: showMenu ? 100 : undefined,
   };
 
   // Calculate due date status for visual indicators
@@ -261,7 +263,7 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
             </div>
           )}
             {(onEdit || onDelete) && (
-              <div className="relative">
+              <div className="relative" ref={menuRef}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -276,7 +278,7 @@ export const KanbanTask = memo(function KanbanTask({ task, columnTitle, onEdit, 
                   <MoreVertical size={16} className="text-black dark:text-white" />
                 </button>
               {showMenu && (
-                <div className="absolute right-0 top-6 z-50 bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[120px]">
+                <div className="absolute right-0 top-6 z-[100] bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[120px]">
                   {onEdit && !isLocked && (
                     <button
                       onClick={handleEdit}

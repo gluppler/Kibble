@@ -37,6 +37,7 @@ describe('POST /api/boards/[id]/archive', () => {
       data: {
         title: 'Test Board for Archive',
         userId: testUserId,
+        position: 0,
       },
     });
     testBoardId = board.id;
@@ -349,6 +350,7 @@ describe('DELETE /api/boards/[id]/archive (Unarchive)', () => {
       data: {
         title: 'Archived Test Board',
         userId: testUserId,
+        position: 0,
         archived: true,
         archivedAt: new Date(),
       },

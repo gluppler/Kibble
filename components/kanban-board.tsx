@@ -45,6 +45,8 @@ import { logError } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
 import { SearchBar, type SearchFilter } from "@/components/search-bar";
 import { searchTasks } from "@/lib/search-utils";
+import { LoadingSpinner } from "@/components/loading-spinner";
+import { isInteracting } from "@/lib/interaction-detector";
 
 /**
  * Props for KanbanBoard component
@@ -200,39 +202,134 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   }, [boardId, fetchBoard]);
 
   /**
+   * Lightweight polling for real-time board updates
+   * 
+   * Polls every 20 seconds when tab is visible and user is not actively interacting
+   * to keep board state synchronized with database changes (e.g., from other users or devices).
+   * Uses Visibility API to pause polling when tab is hidden to reduce server load.
+   * Pauses polling during ANY user interaction (clicks, keyboard, forms, dragging, editing, deleting)
+   * to avoid disrupting workflow.
+   */
+  useEffect(() => {
+    if (!boardId) return;
+
+    let pollingInterval: NodeJS.Timeout | null = null;
+    let checkInterval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      // Clear any existing interval
+      if (pollingInterval) clearInterval(pollingInterval);
+
+      // Poll every 20 seconds (increased to reduce frequency)
+      pollingInterval = setInterval(() => {
+        // Only poll if:
+        // - Tab is visible
+        // - Not currently fetching
+        // - No active task being dragged
+        // - No task being edited
+        // - No task being deleted
+        // - User is not actively interacting (clicks, keyboard, forms, etc.)
+        if (
+          typeof document !== "undefined" &&
+          !document.hidden &&
+          !isFetchingBoardRef.current &&
+          !activeTask &&
+          !editingTask &&
+          !deletingTask &&
+          !isInteracting() &&
+          boardId
+        ) {
+          fetchBoard();
+        }
+      }, 20 * 1000); // 20 seconds (increased to reduce disruption)
+    };
+
+    // Check interaction status periodically to pause/resume polling
+    const startInteractionCheck = () => {
+      if (checkInterval) clearInterval(checkInterval);
+      
+      checkInterval = setInterval(() => {
+        // If user is interacting, pause polling
+        if (isInteracting() && pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+        // If user stopped interacting and polling is paused, resume
+        else if (!isInteracting() && !pollingInterval && typeof document !== "undefined" && !document.hidden) {
+          startPolling();
+        }
+      }, 2000); // Check every 2 seconds
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document === "undefined") return;
+
+      if (document.hidden) {
+        // Tab is hidden - stop polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      } else {
+        // Tab is visible - start polling and interaction checking after a delay
+        setTimeout(() => {
+          if (typeof document !== "undefined" && !document.hidden && !isInteracting()) {
+            startPolling();
+          }
+          startInteractionCheck();
+        }, 3000); // Wait 3 seconds after tab becomes visible
+      }
+    };
+
+    // Start polling if tab is visible (with initial delay)
+    if (typeof document !== "undefined" && !document.hidden) {
+      setTimeout(() => {
+        if (!isInteracting()) {
+          startPolling();
+        }
+        startInteractionCheck();
+      }, 3000); // Initial 3 second delay
+    }
+
+    // Listen for visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      if (checkInterval) clearInterval(checkInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [boardId, fetchBoard, activeTask, editingTask, deletingTask]);
+
+  /**
    * Auto-archive effect for tasks in Done column
    * 
    * Runs archive cleanup every 5 minutes to archive tasks that have been in Done column
    * for more than 24 hours. Also runs immediately on component mount.
    */
   useEffect(() => {
-    // Periodic archive cleanup interval
-    const archiveInterval = setInterval(async () => {
-      try {
-        await deduplicatedFetch("/api/tasks/cleanup", {
-          method: "POST",
-        });
-        // Refetch board after archive to reflect changes
-        await fetchBoard();
-      } catch (error) {
-          logError("Failed to archive tasks:", error);
-      }
-    }, 5 * 60 * 1000); // Every 5 minutes
-
-    // Initial archive cleanup on mount
-    const initialArchive = async () => {
+    const performCleanup = async () => {
       try {
         await deduplicatedFetch("/api/tasks/cleanup", {
           method: "POST",
         });
         await fetchBoard();
       } catch (error) {
-          logError("Failed to archive tasks:", error);
+        logError("Failed to archive tasks:", error);
       }
     };
-    initialArchive();
 
-    // Cleanup interval on unmount
+    // Initial archive cleanup on mount
+    performCleanup();
+
+    // Periodic archive cleanup interval (every 5 minutes)
+    const archiveInterval = setInterval(performCleanup, 5 * 60 * 1000);
+
     return () => clearInterval(archiveInterval);
   }, [fetchBoard]);
 
@@ -704,6 +801,30 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   }, []);
 
   /**
+   * Handles task update completion
+   * 
+   * Updates board state optimistically with the updated task instead of refetching.
+   */
+  const handleTaskUpdate = useCallback((updatedTask: Task) => {
+    if (!updatedTask) return;
+
+    // Optimistic UI update - update task immediately
+    setBoard((prevBoard) => {
+      if (!prevBoard) return prevBoard;
+
+      return {
+        ...prevBoard,
+        columns: prevBoard.columns.map(col => ({
+          ...col,
+          tasks: (col.tasks ?? []).map(t => 
+            t.id === updatedTask.id ? { ...updatedTask, column: col } : t
+          ),
+        })),
+      };
+    });
+  }, []);
+
+  /**
    * Handles task delete action
    * 
    * @param task - Task to delete
@@ -719,17 +840,33 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
    * 
    * @param task - Task to archive
    * 
-   * Archives the task (does not delete).
+   * Archives the task (does not delete) with optimistic UI update.
    */
   const handleTaskArchive = useCallback(async (task: Task) => {
+    // Optimistic UI update - remove task immediately (archived tasks are hidden)
+    setBoard((prevBoard) => {
+      if (!prevBoard) return prevBoard;
+
+      return {
+        ...prevBoard,
+        columns: prevBoard.columns.map(col => ({
+          ...col,
+          tasks: (col.tasks ?? []).filter(t => t.id !== task.id),
+        })),
+      };
+    });
+
     try {
       const response = await deduplicatedFetch(`/api/tasks/${task.id}/archive`, {
         method: "POST",
       });
 
       if (!response.ok) {
+        // Revert on error by refetching
         const data = await response.json();
-        throw new Error(data.error || "Failed to archive task");
+        logError("[TASK ARCHIVE] Failed to archive task:", data);
+        await fetchBoard();
+        return;
       }
 
       // Emit archive event for real-time updates in archive page
@@ -737,36 +874,54 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         const { emitArchiveEvent } = await import("@/lib/archive-events");
         emitArchiveEvent("tasks");
       }
-
-      // Refetch board to reflect changes
-      await fetchBoard();
     } catch (error) {
-        logError("[TASK ARCHIVE] Error archiving task:", error);
+      // Revert on error by refetching
+      logError("[TASK ARCHIVE] Error archiving task:", error);
+      await fetchBoard();
     }
   }, [fetchBoard]);
 
   /**
    * Handles confirmed task deletion
    * 
-   * Deletes the task from the database and refetches the board.
+   * Deletes the task from the database with optimistic UI update.
    */
   const handleDeleteConfirm = useCallback(async () => {
     if (!deletingTask) return;
 
+    const taskToDelete = deletingTask;
+
+    // Optimistic UI update - remove task immediately
+    setBoard((prevBoard) => {
+      if (!prevBoard) return prevBoard;
+
+      return {
+        ...prevBoard,
+        columns: prevBoard.columns.map(col => ({
+          ...col,
+          tasks: (col.tasks ?? []).filter(t => t.id !== taskToDelete.id),
+        })),
+      };
+    });
+
+    setDeletingTask(null);
+
     try {
-      const response = await deduplicatedFetch(`/api/tasks/${deletingTask.id}`, {
+      const response = await deduplicatedFetch(`/api/tasks/${taskToDelete.id}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
+        // Revert on error by refetching
         const data = await response.json();
-        throw new Error(data.error || "Failed to delete task");
+        logError("Failed to delete task:", data);
+        await fetchBoard();
+        alert(data.error || "Failed to delete task");
       }
-
-      setDeletingTask(null);
-      await fetchBoard();
     } catch (error) {
-        logError("Failed to delete task:", error);
+      // Revert on error by refetching
+      logError("Failed to delete task:", error);
+      await fetchBoard();
       alert(error instanceof Error ? error.message : "Failed to delete task");
     }
   }, [deletingTask, fetchBoard]);
@@ -859,18 +1014,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   // Early returns AFTER all hooks have been called
   // This ensures hooks are always called in the same order
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen-responsive w-full">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-black dark:text-white font-bold text-sm sm:text-base">Loading board...</p>
-        </motion.div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading board..." />;
   }
 
   if (!board) {
@@ -1016,7 +1160,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         isOpen={!!editingTask}
         onClose={() => setEditingTask(null)}
         task={editingTask}
-        onUpdate={fetchBoard}
+        onUpdate={handleTaskUpdate}
       />
 
       <DeleteConfirmationDialog

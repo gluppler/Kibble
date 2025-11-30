@@ -32,6 +32,7 @@ import {
 import { PriorityTag } from "@/components/priority-tag";
 import { SearchBar, type SearchFilter } from "@/components/search-bar";
 import { searchArchivedTasks, searchArchivedBoards } from "@/lib/search-utils";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import Link from "next/link";
 
 interface ArchivedBoard {
@@ -546,11 +547,7 @@ export default function ArchivePage() {
   }, [loading, status]);
 
   if (status === "loading" || (loading && !loadingTimeout)) {
-    return (
-      <div className="min-h-screen-responsive bg-white dark:bg-black flex items-center justify-center w-full">
-        <div className="text-black dark:text-white font-bold">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading your Archives…" />;
   }
 
   // Show error state if loading timed out
@@ -706,7 +703,11 @@ export default function ArchivePage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {(() => {
+              {loading && !refreshing ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner message="Loading your archived tasks…" fullScreen={false} />
+                </div>
+              ) : (() => {
                 // Filter tasks based on search and filter
                 // Note: "tasks" filter removed since we're already on Tasks tab
                 const filteredTasks = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")
@@ -822,7 +823,11 @@ export default function ArchivePage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {(() => {
+              {loading && !refreshing ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner message="Loading your archived boards…" fullScreen={false} />
+                </div>
+              ) : (() => {
                 // Filter boards based on search and filter
                 // Note: "boards" filter removed since we're already on Boards tab
                 const filteredBoards = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")

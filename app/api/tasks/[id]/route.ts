@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkTaskPermission, checkColumnBoardMatch } from "@/lib/permissions";
-import { logError } from "@/lib/logger";
+import { logError, logApiTiming } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -13,15 +13,19 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startTime = Date.now();
+  let id: string | undefined;
   try {
     const session = await getServerAuthSession();
-    const { id } = await params;
+    id = (await params).id;
     const body = await request.json();
     const { title, description, columnId, order, dueDate, priority } = body;
 
     // Check task permission using permission utility
     const permissionCheck = await checkTaskPermission(id, session);
     if (!permissionCheck.allowed) {
+      const duration = Date.now() - startTime;
+      logApiTiming(`/api/tasks/${id}`, "PATCH", duration, permissionCheck.statusCode || 403);
       return NextResponse.json(
         { error: permissionCheck.error },
         { status: permissionCheck.statusCode || 403 }
@@ -269,6 +273,8 @@ export async function PATCH(
 
     // Verify updateData contains columnId if we're moving columns
     if (isMovingColumn && !updateData.columnId) {
+      const duration = Date.now() - startTime;
+      logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 500);
       logError(`[TASK UPDATE] Moving column but columnId not set in updateData`, {
         taskId: id,
         isMovingColumn,
@@ -283,6 +289,8 @@ export async function PATCH(
     // Only update if there's something to update
     if (Object.keys(updateData).length === 0) {
       // Return existing task if no changes
+      const duration = Date.now() - startTime;
+      logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 200);
       return NextResponse.json(existingTask);
     }
 
@@ -328,6 +336,8 @@ export async function PATCH(
       });
       
       if (verifyTask && verifyTask.columnId !== finalColumnId) {
+        const duration = Date.now() - startTime;
+        logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 500);
         logError(`[TASK UPDATE] Update did not persist: expected ${finalColumnId}, got ${verifyTask.columnId}`);
         return NextResponse.json(
           { error: "Update did not persist correctly" },
@@ -336,8 +346,12 @@ export async function PATCH(
       }
     }
 
+    const duration = Date.now() - startTime;
+    logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 200);
     return NextResponse.json(task);
   } catch (error) {
+    const duration = Date.now() - startTime;
+    logApiTiming(`/api/tasks/${id || "unknown"}`, "PATCH", duration, 500);
     logError("Error updating task:", error);
     return NextResponse.json(
       { error: "Failed to update task" },

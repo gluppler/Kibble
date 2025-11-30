@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import {
   LayoutDashboard,
@@ -48,11 +48,32 @@ import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/contexts/theme-context";
 import { SearchBar, type SearchFilter } from "@/components/search-bar";
 import { searchBoards } from "@/lib/search-utils";
+import { markUserInteraction } from "@/lib/interaction-detector";
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { logError } from "@/lib/logger";
 import Link from "next/link";
 
 interface Board {
   id: string;
   title: string;
+  position?: number; // Optional for backward compatibility
 }
 
 interface SidebarProps {
@@ -63,6 +84,7 @@ interface SidebarProps {
   onBoardEdit?: (board: Board) => void;
   onBoardDelete?: (board: Board) => void;
   onBoardArchive?: (board: Board) => void;
+  onBoardsReorder?: (reorderedBoards: Board[]) => void; // Callback to update parent state
 }
 
 /**
@@ -89,13 +111,31 @@ export function Sidebar({
   onBoardEdit,
   onBoardDelete,
   onBoardArchive,
+  onBoardsReorder,
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [localSearchQuery, setLocalSearchQuery] = useState(""); // For real-time filtering
   const [searchFilter, setSearchFilter] = useState<SearchFilter>("all");
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms delay for touch
+        tolerance: 8, // 8px tolerance
+      },
+    })
+  );
 
   /**
    * Handle search query change - updates both local (real-time) and debounced query
@@ -257,7 +297,7 @@ export function Sidebar({
    * Board item component with menu options
    */
   const BoardItem = useMemo(() => {
-    return ({ board }: { board: Board }) => {
+    return ({ board, dragHandleProps }: { board: Board; dragHandleProps?: React.HTMLAttributes<HTMLElement> }) => {
       const [showMenu, setShowMenu] = useState(false);
       const menuRef = useRef<HTMLDivElement>(null);
 
@@ -276,7 +316,7 @@ export function Sidebar({
       }, [showMenu]);
 
       return (
-        <div className="group relative">
+        <div className="group relative" style={{ zIndex: showMenu ? 100 : undefined }}>
           <motion.div
             onClick={() => {
               onBoardSelect(board.id);
@@ -300,28 +340,43 @@ export function Sidebar({
               }
             }}
           >
-            <div className="flex items-center gap-2 min-h-[44px]">
+            <div className="flex items-center gap-2 min-h-[44px] relative">
+              {/* Drag handle - covers only the left portion (title area), excluding menu button */}
+              {dragHandleProps && (
+                <div
+                  {...dragHandleProps}
+                  className="absolute left-0 top-0 bottom-0 right-12 cursor-grab active:cursor-grabbing z-0"
+                  aria-label="Drag to reorder"
+                  style={{ touchAction: "none" }}
+                />
+              )}
               <div
-                className={`w-2 h-2 rounded flex-shrink-0 ${
+                className={`w-2 h-2 rounded flex-shrink-0 relative z-10 ${
                   currentBoardId === board.id
                     ? "bg-white dark:bg-black"
                     : "bg-black/30 dark:bg-white/30"
                 }`}
                 aria-hidden="true"
               />
-              <span className="text-xs sm:text-sm truncate flex-1 leading-tight">
+              <span className="text-xs sm:text-sm truncate flex-1 leading-tight relative z-10">
                 {board.title}
               </span>
               {(onBoardEdit || onBoardDelete || onBoardArchive) && (
-                <div className="relative z-10 flex-shrink-0" ref={menuRef}>
+                <div className="relative flex-shrink-0 z-20" ref={menuRef}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
                       setShowMenu(!showMenu);
                     }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className={`p-2 rounded transition-all min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className={`p-2 rounded transition-all min-w-[44px] min-h-[44px] flex items-center justify-center relative z-20 ${
                       currentBoardId === board.id
                         ? "hover:bg-white/20 dark:hover:bg-black/20"
                         : "hover:bg-black/10 dark:hover:bg-white/10"
@@ -330,6 +385,7 @@ export function Sidebar({
                     aria-expanded={showMenu}
                     aria-haspopup="true"
                     type="button"
+                    style={{ pointerEvents: "auto" }}
                   >
                     <MoreVertical
                       size={16}
@@ -345,9 +401,12 @@ export function Sidebar({
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 top-12 z-50 bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[160px]"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="absolute right-0 top-12 z-[100] bg-white dark:bg-black rounded-lg shadow-xl border border-black/10 dark:border-white/10 py-1 min-w-[160px]"
                       role="menu"
                       aria-orientation="vertical"
+                      style={{ pointerEvents: "auto" }}
                     >
                       {onBoardEdit && (
                         <button
@@ -406,7 +465,35 @@ export function Sidebar({
         </div>
       );
     };
-  }, [currentBoardId, onBoardSelect, onBoardEdit, onBoardDelete, onBoardArchive]);
+  }, [currentBoardId, onBoardSelect, onBoardEdit, onBoardDelete, onBoardArchive, setIsOpen]);
+
+  /**
+   * Sortable Board Item Component
+   * 
+   * Wraps BoardItem with drag-and-drop functionality
+   */
+  const SortableBoardItem = memo(function SortableBoardItem({ board }: { board: Board }) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: board.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition: isDragging ? "none" : transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div ref={setNodeRef} style={style}>
+        <BoardItem board={board} dragHandleProps={{ ...attributes, ...listeners }} />
+      </div>
+    );
+  });
 
   /**
    * Profile section component
@@ -494,16 +581,7 @@ export function Sidebar({
                 Kanban Boards
               </p>
             </div>
-            {isMobile && (
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
-                aria-label="Close menu"
-                type="button"
-              >
-                <X size={18} className="text-black dark:text-white" aria-hidden="true" />
-              </button>
-            )}
+            {/* Removed redundant close button - hamburger button handles closing */}
           </div>
         </div>
 
@@ -532,16 +610,27 @@ export function Sidebar({
             </Link>
           )}
           <button
-            onClick={toggleTheme}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-black dark:text-white font-bold min-h-[44px]"
+            onClick={() => {
+              // Mark interaction to pause polling during theme switch
+              markUserInteraction();
+              toggleTheme();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all duration-300 text-black dark:text-white font-bold min-h-[44px]"
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
             type="button"
           >
-            {theme === "light" ? (
-              <Moon size={16} aria-hidden="true" />
-            ) : (
-              <Sun size={16} aria-hidden="true" />
-            )}
+            <motion.div
+              key={theme}
+              initial={{ opacity: 0, rotate: -180 }}
+              animate={{ opacity: 1, rotate: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              {theme === "light" ? (
+                <Moon size={16} aria-hidden="true" />
+              ) : (
+                <Sun size={16} aria-hidden="true" />
+              )}
+            </motion.div>
             <span className="text-xs sm:text-sm">
               {theme === "light" ? "Dark Mode" : "Light Mode"}
             </span>
@@ -566,8 +655,12 @@ export function Sidebar({
   return (
     <>
       {/* Mobile menu button - Always visible on mobile, hidden on desktop */}
+      {/* Toggles between hamburger icon (closed) and X icon (open) */}
       <motion.button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          markUserInteraction();
+          setIsOpen(!isOpen);
+        }}
         className="fixed top-3 left-3 sm:top-4 sm:left-4 z-[60] lg:hidden p-3 rounded-lg bg-white dark:bg-black shadow-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-all backdrop-blur-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
         aria-label={isOpen ? "Close menu" : "Open menu"}
         aria-expanded={isOpen}
@@ -576,15 +669,36 @@ export function Sidebar({
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         initial={false}
-        animate={{ rotate: isOpen ? 90 : 0 }}
-        transition={{ duration: 0.15, ease: "easeInOut" }}
-        style={{ willChange: "transform" }} // GPU acceleration
+        animate={{ 
+          rotate: isOpen ? 90 : 0,
+          scale: isOpen ? 1.1 : 1
+        }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        style={{ willChange: "transform" }}
       >
-        {isOpen ? (
-          <X size={18} className="text-black dark:text-white" aria-hidden="true" />
-        ) : (
-          <Menu size={18} className="text-black dark:text-white" aria-hidden="true" />
-        )}
+        <AnimatePresence mode="wait">
+          {isOpen ? (
+            <motion.div
+              key="close"
+              initial={{ opacity: 0, rotate: -90 }}
+              animate={{ opacity: 1, rotate: 0 }}
+              exit={{ opacity: 0, rotate: 90 }}
+              transition={{ duration: 0.15 }}
+            >
+              <X size={20} className="text-black dark:text-white" aria-hidden="true" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="menu"
+              initial={{ opacity: 0, rotate: 90 }}
+              animate={{ opacity: 1, rotate: 0 }}
+              exit={{ opacity: 0, rotate: -90 }}
+              transition={{ duration: 0.15 }}
+            >
+              <Menu size={20} className="text-black dark:text-white" aria-hidden="true" />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.button>
 
       {/* Desktop sidebar - Always visible on large screens */}
@@ -621,44 +735,133 @@ export function Sidebar({
             />
           </div>
 
-          {/* Filtered Boards List */}
-          <div className="space-y-1.5">
-            {filteredBoards.length === 0 ? (
-              <div className="text-center py-6 px-2">
-                {boards.length === 0 ? (
-                  // No boards exist at all
-                  <>
-                    <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
-                      No boards yet
-                    </p>
-                    <button
-                      onClick={() => {
-                        onNewBoard();
-                      }}
-                      className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
-                      type="button"
-                    >
-                      Create your first board
-                    </button>
-                  </>
+          {/* Filtered Boards List with Drag & Drop */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={(event: DragStartEvent) => {
+              setActiveBoardId(event.active.id as string);
+              markUserInteraction(); // Pause polling during drag
+            }}
+            onDragEnd={async (event: DragEndEvent) => {
+              const { active, over } = event;
+              setActiveBoardId(null);
+
+              if (!over || active.id === over.id) {
+                return;
+              }
+
+              // Only allow reordering when not searching (to prevent conflicts)
+              if (localSearchQuery.trim() !== "") {
+                return;
+              }
+
+              // Use the full boards array for reordering (not filtered)
+              const oldIndex = boards.findIndex((b) => b.id === active.id);
+              const newIndex = boards.findIndex((b) => b.id === over.id);
+
+              if (oldIndex === -1 || newIndex === -1) {
+                return;
+              }
+
+              // Create reordered array with updated positions
+              const reorderedBoards = [...boards];
+              const [movedBoard] = reorderedBoards.splice(oldIndex, 1);
+              reorderedBoards.splice(newIndex, 0, movedBoard);
+
+              // Update positions in the reordered array
+              const updatedBoards = reorderedBoards.map((board, index) => ({
+                ...board,
+                position: index,
+              }));
+
+              // Optimistic UI update
+              if (onBoardsReorder) {
+                onBoardsReorder(updatedBoards);
+              }
+
+              // Persist to database
+              setIsReordering(true);
+              try {
+                const boardIds = updatedBoards.map((b) => b.id);
+                const res = await deduplicatedFetch("/api/boards/reorder", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ boardIds }),
+                });
+
+                if (!res.ok) {
+                  // Revert on error
+                  if (onBoardsReorder) {
+                    onBoardsReorder(boards);
+                  }
+                  logError("Failed to reorder boards:", await res.json().catch(() => ({})));
+                }
+              } catch (error) {
+                // Revert on error
+                if (onBoardsReorder) {
+                  onBoardsReorder(boards);
+                }
+                logError("Error reordering boards:", error);
+              } finally {
+                setIsReordering(false);
+              }
+            }}
+          >
+            <SortableContext
+              items={localSearchQuery.trim() === "" ? boards.map((b) => b.id) : []}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-1.5">
+                {filteredBoards.length === 0 ? (
+                  <div className="text-center py-6 px-2">
+                    {boards.length === 0 ? (
+                      // No boards exist at all
+                      <>
+                        <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                          No boards yet
+                        </p>
+                        <button
+                          onClick={() => {
+                            onNewBoard();
+                          }}
+                          className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
+                          type="button"
+                        >
+                          Create your first board
+                        </button>
+                      </>
+                    ) : (
+                      // Boards exist but search didn't match
+                      <>
+                        <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                          No boards found
+                        </p>
+                        <p className="text-xs text-black/30 dark:text-white/30 font-bold">
+                          Try a different search term
+                        </p>
+                      </>
+                    )}
+                  </div>
                 ) : (
-                  // Boards exist but search didn't match
-                  <>
-                    <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
-                      No boards found
-                    </p>
-                    <p className="text-xs text-black/30 dark:text-white/30 font-bold">
-                      Try a different search term
-                    </p>
-                  </>
+                  filteredBoards.map((board) => (
+                    <SortableBoardItem key={board.id} board={board} />
+                  ))
                 )}
               </div>
-            ) : (
-              filteredBoards.map((board) => (
-                <BoardItem key={board.id} board={board} />
-              ))
-            )}
-          </div>
+            </SortableContext>
+            <DragOverlay>
+              {activeBoardId ? (
+                <div className="opacity-50">
+                  {filteredBoards.find((b) => b.id === activeBoardId) && (
+                    <BoardItem
+                      board={filteredBoards.find((b) => b.id === activeBoardId)!}
+                    />
+                  )}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </aside>
 
@@ -675,9 +878,10 @@ export function Sidebar({
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 lg:hidden"
               aria-hidden="true"
-              style={{ willChange: "opacity" }} // GPU acceleration
+              transition={{ duration: 0.2 }}
+              style={{ willChange: "opacity" }}
             />
 
             {/* Sidebar drawer */}
@@ -688,15 +892,15 @@ export function Sidebar({
               exit={{ x: "-100%" }}
               transition={{
                 type: "spring",
-                damping: 30,
-                stiffness: 300,
+                damping: 25,
+                stiffness: 350,
               }}
               style={{
                 x,
                 opacity,
-                willChange: "transform", // GPU acceleration
+                willChange: "transform",
               }}
-              className="fixed left-0 top-0 h-screen-responsive bg-white dark:bg-black border-r border-black/10 dark:border-white/10 z-[55] flex flex-col shadow-xl lg:hidden flex-shrink-0 rounded-r-2xl"
+              className="fixed left-0 top-0 h-screen-responsive bg-white dark:bg-black border-r border-black/10 dark:border-white/10 z-[55] flex flex-col shadow-2xl lg:hidden flex-shrink-0 rounded-r-2xl"
               role="dialog"
               aria-modal="true"
               aria-label="Navigation menu"
@@ -737,45 +941,134 @@ export function Sidebar({
                   />
                 </div>
 
-                {/* Filtered Boards List */}
-                <div className="space-y-1.5">
-                  {filteredBoards.length === 0 ? (
-                    <div className="text-center py-6 px-2">
-                      {boards.length === 0 ? (
-                        // No boards exist at all
-                        <>
-                          <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
-                            No boards yet
-                          </p>
-                          <button
-                            onClick={() => {
-                              onNewBoard();
-                              setIsOpen(false);
-                            }}
-                            className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
-                            type="button"
-                          >
-                            Create your first board
-                          </button>
-                        </>
+                {/* Filtered Boards List with Drag & Drop */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={(event: DragStartEvent) => {
+                    setActiveBoardId(event.active.id as string);
+                    markUserInteraction(); // Pause polling during drag
+                  }}
+                  onDragEnd={async (event: DragEndEvent) => {
+                    const { active, over } = event;
+                    setActiveBoardId(null);
+
+                    if (!over || active.id === over.id) {
+                      return;
+                    }
+
+                    // Only allow reordering when not searching (to prevent conflicts)
+                    if (localSearchQuery.trim() !== "") {
+                      return;
+                    }
+
+                    // Use the full boards array for reordering (not filtered)
+                    const oldIndex = boards.findIndex((b) => b.id === active.id);
+                    const newIndex = boards.findIndex((b) => b.id === over.id);
+
+                    if (oldIndex === -1 || newIndex === -1) {
+                      return;
+                    }
+
+                    // Create reordered array with updated positions
+                    const reorderedBoards = [...boards];
+                    const [movedBoard] = reorderedBoards.splice(oldIndex, 1);
+                    reorderedBoards.splice(newIndex, 0, movedBoard);
+
+                    // Update positions in the reordered array
+                    const updatedBoards = reorderedBoards.map((board, index) => ({
+                      ...board,
+                      position: index,
+                    }));
+
+                    // Optimistic UI update
+                    if (onBoardsReorder) {
+                      onBoardsReorder(updatedBoards);
+                    }
+
+                    // Persist to database
+                    setIsReordering(true);
+                    try {
+                      const boardIds = updatedBoards.map((b) => b.id);
+                      const res = await deduplicatedFetch("/api/boards/reorder", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ boardIds }),
+                      });
+
+                      if (!res.ok) {
+                        // Revert on error
+                        if (onBoardsReorder) {
+                          onBoardsReorder(boards);
+                        }
+                        logError("Failed to reorder boards:", await res.json().catch(() => ({})));
+                      }
+                    } catch (error) {
+                      // Revert on error
+                      if (onBoardsReorder) {
+                        onBoardsReorder(boards);
+                      }
+                      logError("Error reordering boards:", error);
+                    } finally {
+                      setIsReordering(false);
+                    }
+                  }}
+                >
+                  <SortableContext
+                    items={localSearchQuery.trim() === "" ? boards.map((b) => b.id) : []}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-1.5">
+                      {filteredBoards.length === 0 ? (
+                        <div className="text-center py-6 px-2">
+                          {boards.length === 0 ? (
+                            // No boards exist at all
+                            <>
+                              <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                                No boards yet
+                              </p>
+                              <button
+                                onClick={() => {
+                                  onNewBoard();
+                                  setIsOpen(false);
+                                }}
+                                className="text-xs text-black dark:text-white hover:opacity-80 underline font-bold min-h-[44px] px-3 py-2"
+                                type="button"
+                              >
+                                Create your first board
+                              </button>
+                            </>
+                          ) : (
+                            // Boards exist but search didn't match
+                            <>
+                              <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
+                                No boards found
+                              </p>
+                              <p className="text-xs text-black/30 dark:text-white/30 font-bold">
+                                Try a different search term
+                              </p>
+                            </>
+                          )}
+                        </div>
                       ) : (
-                        // Boards exist but search didn't match
-                        <>
-                          <p className="text-xs text-black/40 dark:text-white/40 font-bold mb-2">
-                            No boards found
-                          </p>
-                          <p className="text-xs text-black/30 dark:text-white/30 font-bold">
-                            Try a different search term
-                          </p>
-                        </>
+                        filteredBoards.map((board) => (
+                          <SortableBoardItem key={board.id} board={board} />
+                        ))
                       )}
                     </div>
-                  ) : (
-                    filteredBoards.map((board) => (
-                      <BoardItem key={board.id} board={board} />
-                    ))
-                  )}
-                </div>
+                  </SortableContext>
+                  <DragOverlay>
+                    {activeBoardId ? (
+                      <div className="opacity-50">
+                        {filteredBoards.find((b) => b.id === activeBoardId) && (
+                          <BoardItem
+                            board={filteredBoards.find((b) => b.id === activeBoardId)!}
+                          />
+                        )}
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
               </div>
             </motion.aside>
           </>

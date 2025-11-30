@@ -31,6 +31,7 @@ import { logError } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
 import { SearchBar, type SearchFilter } from "@/components/search-bar";
 import { searchBoards } from "@/lib/search-utils";
+import { LoadingSpinner } from "@/components/loading-spinner";
 
 /**
  * Board interface - minimal board representation for list views
@@ -38,6 +39,7 @@ import { searchBoards } from "@/lib/search-utils";
 interface Board {
   id: string;
   title: string;
+  position?: number;
 }
 
 /**
@@ -429,6 +431,17 @@ export default function Home() {
   }, []);
 
   /**
+   * Handles board reordering
+   * 
+   * @param reorderedBoards - Boards in new order with updated positions
+   * 
+   * Optimistically updates the boards state when boards are reordered via drag-and-drop.
+   */
+  const handleBoardsReorder = useCallback((reorderedBoards: Board[]) => {
+    setBoards(reorderedBoards);
+  }, []);
+
+  /**
    * Handles board edit action
    * 
    * @param board - Board to edit
@@ -563,18 +576,9 @@ export default function Home() {
 
   if (status === "loading" || (loading && !loadingTimeout) || isCreatingDefault) {
     return (
-      <div className="flex items-center justify-center min-h-screen-responsive bg-white dark:bg-black w-full">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-black dark:text-white font-bold text-sm sm:text-base">
-            {isCreatingDefault ? "Creating your first board..." : "Loading your boards..."}
-          </p>
-        </motion.div>
-      </div>
+      <LoadingSpinner
+        message={isCreatingDefault ? "Creating your first board..." : "Loading your boards..."}
+      />
     );
   }
 
@@ -664,6 +668,7 @@ export default function Home() {
         onBoardEdit={handleBoardEdit}
         onBoardDelete={handleBoardDelete}
         onBoardArchive={handleBoardArchive}
+        onBoardsReorder={handleBoardsReorder}
       />
       
       <main className="flex-1 overflow-hidden lg:ml-64 xl:ml-72 pt-12 sm:pt-14 md:pt-16 lg:pt-0 w-full min-w-0 flex flex-col">

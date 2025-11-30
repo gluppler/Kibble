@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { markUserInteraction } from "@/lib/interaction-detector";
 
 interface CreateBoardDialogProps {
   isOpen: boolean;
@@ -74,7 +75,12 @@ export function CreateBoardDialog({
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+              <form 
+                onSubmit={handleSubmit} 
+                onFocus={() => markUserInteraction()}
+                onClick={() => markUserInteraction()}
+                className="space-y-3 sm:space-y-4"
+              >
                 {error && (
                   <div className="p-3 rounded-lg bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 text-black dark:text-white text-xs sm:text-sm font-bold">
                     {error}

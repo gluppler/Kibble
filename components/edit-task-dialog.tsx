@@ -7,12 +7,14 @@ import type { Task } from "@/lib/types";
 import { useAlerts } from "@/contexts/alert-context";
 import { getDateInputFormatHint } from "@/lib/date-utils";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { markUserInteraction } from "@/lib/interaction-detector";
+import { DatePickerInput } from "@/components/date-picker";
 
 interface EditTaskDialogProps {
   isOpen: boolean;
   onClose: () => void;
   task: Task | null;
-  onUpdate: () => void;
+  onUpdate: (updatedTask: Task) => void;
 }
 
 export function EditTaskDialog({
@@ -28,7 +30,7 @@ export function EditTaskDialog({
   const isLocked = task?.locked || false;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState<Date | null>(null);
   const [priority, setPriority] = useState<"normal" | "high">("normal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,10 +41,14 @@ export function EditTaskDialog({
       setDescription(task.description || "");
       if (task.dueDate) {
         const date = new Date(task.dueDate);
-        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-        setDueDate(localDate.toISOString().slice(0, 16));
+        // Validate date
+        if (!isNaN(date.getTime())) {
+          setDueDate(date);
+        } else {
+          setDueDate(null);
+        }
       } else {
-        setDueDate("");
+        setDueDate(null);
       }
       setPriority((task.priority as "normal" | "high") || "normal");
       setError("");
@@ -69,7 +75,7 @@ export function EditTaskDialog({
         body: JSON.stringify({
           title: trimmedTitle,
           description: trimmedDescription || null,
-          dueDate: dueDate ?? null,
+          dueDate: dueDate ? dueDate.toISOString() : null,
           priority: priority,
         }),
       });
@@ -86,7 +92,8 @@ export function EditTaskDialog({
         checkTaskForAlert(updatedTask);
       }
 
-      onUpdate();
+      // Pass updated task to parent for optimistic update
+      onUpdate(updatedTask);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update task");
@@ -183,7 +190,12 @@ export function EditTaskDialog({
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+              <form 
+                onSubmit={handleSubmit} 
+                onFocus={() => markUserInteraction()}
+                onClick={() => markUserInteraction()}
+                className="space-y-3 sm:space-y-4"
+              >
                 <div>
                   <label
                     htmlFor="edit-title"
@@ -227,19 +239,13 @@ export function EditTaskDialog({
                   >
                     Due Date
                   </label>
-                  <div className="relative">
-                    <input
-                      id="edit-due-date"
-                      type="datetime-local"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      title={`Due date - Format: ${getDateInputFormatHint()}`}
-                      className="w-full px-3 py-2 sm:py-2.5 pr-10 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
-                      style={{
-                        paddingRight: '2.5rem',
-                      }}
-                    />
-                  </div>
+                  <DatePickerInput
+                    id="edit-due-date"
+                    value={dueDate}
+                    onChange={setDueDate}
+                    placeholder={`Due date - Format: ${getDateInputFormatHint()}`}
+                    title={`Due date - Format: ${getDateInputFormatHint()}`}
+                  />
                   <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
                     Format: {getDateInputFormatHint()}
                   </p>

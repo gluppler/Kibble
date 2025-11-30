@@ -67,11 +67,15 @@ export async function GET() {
         select: {
           id: true,
           title: true,
+          position: true,
           createdAt: true,
           updatedAt: true,
           // Explicitly exclude sensitive fields (userId excluded by design)
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [
+          { position: "asc" },
+          { createdAt: "asc" }, // Fallback for boards with same position
+        ],
         take: 50, // Limit for 0.5GB RAM constraint
       });
     } catch (dbError) {
@@ -87,6 +91,7 @@ export async function GET() {
     const sanitizedBoards = safeBoards.map((board) => ({
       id: typeof board.id === "string" ? board.id : "",
       title: typeof board.title === "string" ? board.title : "",
+      position: typeof board.position === "number" ? board.position : 0,
       createdAt: board.createdAt instanceof Date ? board.createdAt : new Date(),
       updatedAt: board.updatedAt instanceof Date ? board.updatedAt : new Date(),
     }));

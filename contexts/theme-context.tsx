@@ -69,13 +69,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
    */
   const updateTheme = (newTheme: Theme) => {
     const root = document.documentElement;
-    // Remove existing theme classes
-    root.classList.remove("light", "dark");
-    // Add new theme class
-    root.classList.add(newTheme);
     
-    // Also set data attribute for better compatibility with CSS selectors
-    root.setAttribute("data-theme", newTheme);
+    // Use requestAnimationFrame for smooth transition
+    requestAnimationFrame(() => {
+      // Remove existing theme classes
+      root.classList.remove("light", "dark");
+      // Add new theme class
+      root.classList.add(newTheme);
+      
+      // Also set data attribute for better compatibility with CSS selectors
+      root.setAttribute("data-theme", newTheme);
+    });
   };
 
   /**

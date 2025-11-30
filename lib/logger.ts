@@ -73,3 +73,40 @@ export function logInfo(message: string, data?: unknown): void {
     console.log(message, data);
   }
 }
+
+/**
+ * Logs API request/response timing for performance monitoring.
+ * 
+ * Only executes in development mode or when explicitly enabled in production.
+ * Use to monitor cold-start delays and API performance.
+ * 
+ * @param route - API route path
+ * @param method - HTTP method
+ * @param duration - Request duration in milliseconds
+ * @param status - HTTP status code
+ * 
+ * @example
+ * ```typescript
+ * const start = Date.now();
+ * const response = await fetch('/api/tasks');
+ * logApiTiming('/api/tasks', 'GET', Date.now() - start, response.status);
+ * ```
+ */
+export function logApiTiming(
+  route: string,
+  method: string,
+  duration: number,
+  status?: number
+): void {
+  // Log in development or if explicitly enabled in production
+  if (process.env.NODE_ENV === "development" || process.env.ENABLE_API_LOGGING === "true") {
+    const timing = duration > 1000 ? `${(duration / 1000).toFixed(2)}s` : `${duration}ms`;
+    const statusText = status ? ` [${status}]` : "";
+    console.log(`[API TIMING] ${method} ${route}${statusText} in ${timing}`);
+    
+    // Warn about slow requests (potential cold-start)
+    if (duration > 2000) {
+      console.warn(`[API TIMING] Slow request detected: ${method} ${route} took ${timing}`);
+    }
+  }
+}

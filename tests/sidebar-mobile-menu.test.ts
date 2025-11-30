@@ -134,8 +134,11 @@ describe('Mobile Menu - Hamburger Button', () => {
     fireEvent.click(button);
     
     await waitFor(() => {
-      const closeButtons = screen.getAllByLabelText('Close menu');
-      expect(closeButtons.length).toBeGreaterThan(0);
+      // Hamburger button should now show "Close menu" label
+      const closeButton = screen.getByLabelText('Close menu');
+      expect(closeButton).toBeInTheDocument();
+      // Drawer should be visible
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
   });
 
@@ -182,21 +185,25 @@ describe('Mobile Menu - Drawer', () => {
     }
   });
 
-  it('should close drawer when close button is clicked', async () => {
+  it('should close drawer when hamburger button (now showing X) is clicked', async () => {
     renderSidebar();
     const openButton = screen.getByLabelText('Open menu');
     fireEvent.click(openButton);
     
     await waitFor(() => {
-      const closeButtons = screen.getAllByLabelText('Close menu');
-      expect(closeButtons.length).toBeGreaterThan(0);
+      // Hamburger button should now show "Close menu" label
+      const closeButton = screen.getByLabelText('Close menu');
+      expect(closeButton).toBeInTheDocument();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
       
-      // Click the first close button (usually the one in the drawer header)
-      fireEvent.click(closeButtons[0]);
+      // Click the hamburger button (which now shows X icon) to close
+      fireEvent.click(closeButton);
     });
     
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      // Button should now show "Open menu" again
+      expect(screen.getByLabelText('Open menu')).toBeInTheDocument();
     });
   });
 

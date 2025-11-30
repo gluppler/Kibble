@@ -90,11 +90,12 @@ export async function POST(request: Request) {
         },
       });
 
-      // Create board with default columns
+      // Create board with default columns (position 0 for first board)
       const board = await tx.board.create({
         data: {
           title: "My Kanban Board",
           userId: user.id,
+          position: 0, // First board has position 0
           columns: {
             create: [
               { title: "To-Do", order: 0 },

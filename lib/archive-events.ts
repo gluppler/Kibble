@@ -81,12 +81,8 @@ export function emitArchiveEvent(type: "tasks" | "boards" | "both"): void {
   } catch (error) {
     // Fail silently if localStorage is unavailable (e.g., private browsing mode)
     // Only log errors in development to prevent information leakage
-    if (process.env.NODE_ENV === "development") {
-      // Use console.warn as fallback since this is a utility module
-      // and importing logger could create circular dependencies
-      if (typeof console !== "undefined" && console.warn) {
-        console.warn("Failed to emit archive event:", error);
-      }
+    if (process.env.NODE_ENV === "development" && typeof console !== "undefined" && console.warn) {
+      console.warn("Failed to emit archive event:", error);
     }
   }
 }

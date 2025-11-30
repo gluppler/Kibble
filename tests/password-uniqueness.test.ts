@@ -51,13 +51,6 @@ describe("Password Uniqueness", () => {
     // Check if password is unique (should be false - already in use)
     const isUnique = await isPasswordUnique(sharedPassword);
     expect(isUnique).toBe(false);
-
-    // Cleanup - use deleteMany to avoid errors if already deleted
-    try {
-      await db.user.delete({ where: { id: user1.id } });
-    } catch (error) {
-      // Ignore if already deleted
-    }
   });
 
   it("should return true when password is unique", async () => {
@@ -76,13 +69,6 @@ describe("Password Uniqueness", () => {
     // Check if new password is unique (should be true)
     const isUnique = await isPasswordUnique(newPassword);
     expect(isUnique).toBe(true);
-
-    // Cleanup - use deleteMany to avoid errors if already deleted
-    try {
-      await db.user.delete({ where: { id: user.id } });
-    } catch (error) {
-      // Ignore if already deleted
-    }
   });
 
   it("should exclude user from uniqueness check when excludeUserId is provided", async () => {
@@ -102,18 +88,10 @@ describe("Password Uniqueness", () => {
     expect(isUnique).toBe(true);
 
     // Check uniqueness without exclusion (should be false - password is in use)
-    // Note: We need to ensure the user still exists in the database
     const userExists = await db.user.findUnique({ where: { id: user.id } });
     if (userExists) {
       const isUniqueWithoutExclusion = await isPasswordUnique(password);
       expect(isUniqueWithoutExclusion).toBe(false);
-    }
-
-    // Cleanup - use deleteMany to avoid errors if already deleted
-    try {
-      await db.user.delete({ where: { id: user.id } });
-    } catch (error) {
-      // Ignore if already deleted
     }
   });
 
@@ -137,13 +115,6 @@ describe("Password Uniqueness", () => {
     // Validate unique password (should pass)
     const uniqueValidation = await validatePassword("UniquePassword123!");
     expect(uniqueValidation.valid).toBe(true);
-
-    // Cleanup - use deleteMany to avoid errors if already deleted
-    try {
-      await db.user.delete({ where: { id: user.id } });
-    } catch (error) {
-      // Ignore if already deleted
-    }
   });
 
   it("should reject passwords that are too short", async () => {
@@ -207,23 +178,12 @@ describe("Password Uniqueness", () => {
       const isUnique2 = await isPasswordUnique(password2);
       expect(isUnique2).toBe(false);
     } else {
-      // If user was deleted, skip this assertion
-      console.warn("User2 was deleted before password2 uniqueness check");
+      // If user was deleted, fail the test as this indicates a race condition
+      throw new Error("User2 was deleted before password2 uniqueness check - test data integrity issue");
     }
 
     // Check if new password is unique (should be true)
     const isUnique3 = await isPasswordUnique("NewPassword123!");
     expect(isUnique3).toBe(true);
-
-    // Cleanup - use deleteMany to avoid errors if already deleted
-    try {
-      await db.user.deleteMany({
-        where: {
-          id: { in: [user1.id, user2.id] },
-        },
-      });
-    } catch (error) {
-      // Ignore if already deleted
-    }
   });
 });

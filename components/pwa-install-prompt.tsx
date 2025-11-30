@@ -16,9 +16,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { logError } from "@/lib/logger";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, Smartphone } from "lucide-react";
+import { deduplicatedFetch } from "@/lib/request-deduplication";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -26,13 +28,70 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function PWAInstallPrompt() {
+  const { data: session } = useSession();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
+
+  /**
+   * Fetch user notification preferences
+   * Respects user's notification settings - don't show PWA prompt if notifications are disabled
+   */
+  useEffect(() => {
+    if (!session?.user?.id) {
+      // No session - default to showing prompt (for unauthenticated users)
+      setNotificationsEnabled(true);
+      return;
+    }
+
+    const fetchPreferences = async () => {
+      try {
+        const res = await deduplicatedFetch("/api/user/notifications");
+        if (res.ok) {
+          const data = await res.json();
+          setNotificationsEnabled(data.notificationsEnabled ?? true);
+        } else {
+          // Default to enabled on error
+          setNotificationsEnabled(true);
+        }
+      } catch (error) {
+        logError("Error fetching notification preferences for PWA prompt:", error);
+        // Default to enabled on error
+        setNotificationsEnabled(true);
+      }
+    };
+
+    fetchPreferences();
+
+    // Listen for preference updates from settings page
+    const handlePreferenceUpdate = () => {
+      fetchPreferences();
+    };
+
+    window.addEventListener("kibble:notifications:updated", handlePreferenceUpdate);
+    window.addEventListener("storage", (e) => {
+      if (e.key === "kibble:notifications:updated") {
+        fetchPreferences();
+      }
+    });
+
+    return () => {
+      window.removeEventListener("kibble:notifications:updated", handlePreferenceUpdate);
+    };
+  }, [session]);
 
   useEffect(() => {
+    // Don't show prompt if notifications are disabled
+    // Hide immediately if notifications are disabled
+    if (notificationsEnabled === false) {
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+      return;
+    }
+
     // Check if already installed (standalone mode)
     const isStandaloneMode =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -69,7 +128,10 @@ export function PWAInstallPrompt() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowPrompt(true);
+      // Only show prompt if notifications are enabled (true or null/default)
+      if (notificationsEnabled === true || notificationsEnabled === null) {
+        setShowPrompt(true);
+      }
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -85,7 +147,7 @@ export function PWAInstallPrompt() {
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
-  }, []);
+  }, [notificationsEnabled]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -120,8 +182,11 @@ export function PWAInstallPrompt() {
     localStorage.setItem("pwa-install-dismissed", Date.now().toString());
   };
 
-  // Don't show if already installed or in standalone mode
-  if (isInstalled || isStandalone || !showPrompt) {
+  // Don't show if:
+  // - Already installed or in standalone mode
+  // - Notifications are disabled
+  // - Prompt state is false
+  if (isInstalled || isStandalone || !showPrompt || notificationsEnabled === false) {
     return null;
   }
 

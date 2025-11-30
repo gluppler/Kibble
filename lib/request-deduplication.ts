@@ -29,7 +29,7 @@
  * for debugging purposes but don't expose sensitive information.
  */
 const logError = (message: string, ...args: unknown[]): void => {
-  if (typeof console !== 'undefined' && console.error && process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV === "development" && typeof console !== 'undefined' && console.error) {
     console.error(`[REQUEST-DEDUP] ${message}`, ...args);
   }
 };

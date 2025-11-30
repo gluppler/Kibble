@@ -19,6 +19,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { logError } from "@/lib/logger";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { 
   Settings, 
   User, 
@@ -255,11 +256,7 @@ export default function SettingsPage() {
 
   // Show loading state while checking authentication
   if (status === "loading") {
-    return (
-      <div className="min-h-screen-responsive bg-white dark:bg-black flex items-center justify-center w-full">
-        <div className="text-black dark:text-white font-bold">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading settings..." />;
   }
 
   // Don't render content if not authenticated (redirect will happen via useEffect)
@@ -297,7 +294,7 @@ export default function SettingsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
           className="bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-4 sm:p-6 mb-4 sm:mb-6"
         >
           <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -334,7 +331,7 @@ export default function SettingsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: 0.03 }}
+          transition={{ duration: 0.3, delay: 0.05, ease: "easeOut" }}
           className="bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-4 sm:p-6 mb-4 sm:mb-6"
         >
           <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -516,7 +513,7 @@ export default function SettingsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: 0.04 }}
+          transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
           className="bg-white dark:bg-black rounded-lg border border-black/10 dark:border-white/10 p-4 sm:p-6 mb-4 sm:mb-6"
         >
           <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -716,7 +713,7 @@ export default function SettingsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: 0.05 }}
+          transition={{ duration: 0.3, delay: 0.15, ease: "easeOut" }}
           className="bg-white dark:bg-black rounded-lg border-2 border-black dark:border-white p-4 sm:p-6"
         >
           <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -785,10 +782,14 @@ export default function SettingsPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4"
               >
                 <motion.div
                   onClick={(e) => e.stopPropagation()}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: 0.05, ease: "easeOut" }}
                   className="bg-white dark:bg-black rounded-lg shadow-2xl max-w-md w-full p-4 sm:p-6 border border-black/10 dark:border-white/10"
                 >
                   <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -916,10 +917,14 @@ export default function SettingsPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4"
               >
                 <motion.div
                   onClick={(e) => e.stopPropagation()}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: 0.05, ease: "easeOut" }}
                   className="bg-white dark:bg-black rounded-lg shadow-2xl max-w-md w-full p-4 sm:p-6 border border-black/10 dark:border-white/10"
                 >
                   <div className="flex items-center gap-3 mb-4 sm:mb-6">

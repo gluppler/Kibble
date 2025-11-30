@@ -24,6 +24,8 @@ import { KanbanTask } from "./kanban-task";
 import { useAlerts } from "@/contexts/alert-context";
 import { getDateInputFormatHint } from "@/lib/date-utils";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
+import { markUserInteraction } from "@/lib/interaction-detector";
+import { DatePickerInput } from "@/components/date-picker";
 
 /**
  * Props for KanbanColumn component
@@ -49,7 +51,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState<Date | null>(null);
   const [taskPriority, setTaskPriority] = useState<"normal" | "high">("normal");
   const [taskError, setTaskError] = useState("");
 
@@ -112,8 +114,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
     requestBody.description = trimmedDescription && trimmedDescription.length > 0 ? trimmedDescription : null;
 
     // Only include dueDate if it has a value
-    const trimmedDueDate = taskDueDate?.trim();
-    requestBody.dueDate = trimmedDueDate && trimmedDueDate.length > 0 ? trimmedDueDate : null;
+    requestBody.dueDate = taskDueDate ? taskDueDate.toISOString() : null;
 
     try {
       // Create task via API
@@ -143,7 +144,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
       // Reset form state
       setTaskTitle("");
       setTaskDescription("");
-      setTaskDueDate("");
+      setTaskDueDate(null);
       setTaskPriority("normal");
       setTaskError("");
       setIsAddingTask(false);
@@ -214,7 +215,12 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
           </SortableContext>
         )}
         {isAddingTask ? (
-          <form onSubmit={handleAddTask} className="space-y-2 flex-shrink-0 mt-2">
+          <form 
+            onSubmit={handleAddTask} 
+            onFocus={() => markUserInteraction()}
+            onClick={() => markUserInteraction()}
+            className="space-y-2 flex-shrink-0 mt-2"
+          >
             {taskError && (
               <div className="p-2 bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 rounded-lg text-xs text-black dark:text-white font-bold">
                 {taskError}
@@ -240,24 +246,21 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
               rows={2}
               className="w-full px-2.5 sm:px-3 py-2 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent resize-none transition-all text-xs sm:text-sm font-bold"
             />
-            <div className="relative">
-              <motion.input
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 }}
-                type="datetime-local"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1 }}
+            >
+              <DatePickerInput
                 value={taskDueDate}
-                onChange={(e) => setTaskDueDate(e.target.value)}
+                onChange={setTaskDueDate}
+                placeholder={`Due date (optional) - Format: ${getDateInputFormatHint()}`}
                 title={`Due date (optional) - Format: ${getDateInputFormatHint()}`}
-                className="w-full px-2.5 sm:px-3 py-2 pr-10 border border-black/20 dark:border-white/20 rounded-lg bg-white dark:bg-black text-black dark:text-white placeholder-black/40 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all text-xs sm:text-sm font-bold [color-scheme:light] dark:[color-scheme:dark]"
-                style={{
-                  paddingRight: '2.5rem',
-                }}
               />
               <p className="mt-1 text-xs text-black/40 dark:text-white/40 font-bold">
                 Format: {getDateInputFormatHint()}
               </p>
-            </div>
+            </motion.div>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -294,7 +297,7 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
                   setIsAddingTask(false);
                   setTaskTitle("");
                   setTaskDescription("");
-                  setTaskDueDate("");
+                  setTaskDueDate(null);
                   setTaskPriority("normal");
                   setTaskError("");
                 }}

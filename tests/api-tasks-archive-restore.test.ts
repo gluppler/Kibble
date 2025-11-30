@@ -39,6 +39,7 @@ describe('DELETE /api/tasks/[id]/archive - Restore Task Validation', () => {
       data: {
         title: 'Active Test Board',
         userId: testUserId,
+        position: 0,
         archived: false,
       },
     });
@@ -49,6 +50,7 @@ describe('DELETE /api/tasks/[id]/archive - Restore Task Validation', () => {
       data: {
         title: 'Archived Test Board',
         userId: testUserId,
+        position: 0,
         archived: true,
         archivedAt: new Date(),
       },
