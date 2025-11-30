@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 // Mock database
 const mockDb = {
@@ -47,7 +47,7 @@ vi.mock('@/server/auth', () => ({
   getServerAuthSession: mockGetServerAuthSession,
 }));
 
-vi.mock('bcryptjs', () => ({
+vi.mock('bcrypt', () => ({
   default: {
     compare: vi.fn(),
   },

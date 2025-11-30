@@ -202,6 +202,8 @@ model Board {
   @@index([userId])
   @@index([archived])
   @@index([archivedAt])
+  // Composite index for common query pattern: user's non-archived boards
+  @@index([userId, archived])
 }
 
 /**
@@ -274,4 +276,8 @@ model Task {
   @@index([archivedAt])
   @@index([priority])
   @@index([title]) // For search optimization
+  // Composite indexes for common query patterns
+  @@index([columnId, archived]) // Common: tasks in column excluding archived
+  @@index([archived, archivedAt]) // Common: archived tasks ordered by date
+  @@index([locked, archived]) // Common: non-locked, non-archived tasks
 }

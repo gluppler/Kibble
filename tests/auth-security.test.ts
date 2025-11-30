@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 // Mock database
 const mockDb = {
@@ -41,7 +41,7 @@ vi.mock('@/lib/db', () => ({
   db: mockDb,
 }));
 
-vi.mock('bcryptjs', () => ({
+vi.mock('bcrypt', () => ({
   default: {
     hash: vi.fn(),
     compare: vi.fn(),

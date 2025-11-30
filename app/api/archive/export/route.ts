@@ -57,24 +57,33 @@ export async function GET(request: Request) {
     const type = searchParams.get("type") || "tasks";
 
     if (type === "boards") {
-      // Export archived boards
+      // Export archived boards (using select with limits)
       const boards = await db.board.findMany({
         where: {
           userId: session.user.id,
           archived: true,
         },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          archivedAt: true,
+          createdAt: true,
           columns: {
-            include: {
+            select: {
+              id: true,
               tasks: {
                 where: {
                   archived: false,
+                },
+                select: {
+                  id: true, // Only need ID for counting
                 },
               },
             },
           },
         },
         orderBy: { archivedAt: "desc" },
+        take: 50, // Limit for 0.5GB RAM constraint
       });
 
       // Generate CSV
@@ -104,7 +113,7 @@ export async function GET(request: Request) {
         },
       });
     } else {
-      // Export archived tasks
+      // Export archived tasks (using select with limits)
       const tasks = await db.task.findMany({
         where: {
           archived: true,
@@ -114,9 +123,17 @@ export async function GET(request: Request) {
             },
           },
         },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueDate: true,
+          archivedAt: true,
+          createdAt: true,
           column: {
-            include: {
+            select: {
+              id: true,
+              title: true,
               board: {
                 select: {
                   id: true,
@@ -127,6 +144,7 @@ export async function GET(request: Request) {
           },
         },
         orderBy: { archivedAt: "desc" },
+        take: 500, // Limit for 0.5GB RAM constraint
       });
 
       // Generate CSV

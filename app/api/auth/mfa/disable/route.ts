@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { z } from "zod";
 import { logSecurityEvent, getClientIP, getUserAgent } from "@/lib/security-logger";
 import { logError } from "@/lib/logger";

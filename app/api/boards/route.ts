@@ -34,6 +34,7 @@ export async function POST(request: Request) {
 
     const trimmedTitle = title.trim();
 
+    // Don't include tasks since they're empty on creation (using select)
     const board = await db.board.create({
       data: {
         title: trimmedTitle,
@@ -47,12 +48,20 @@ export async function POST(request: Request) {
           ],
         },
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         columns: {
-          include: {
-            tasks: {
-              orderBy: { order: "asc" },
-            },
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            boardId: true,
+            createdAt: true,
+            updatedAt: true,
           },
           orderBy: { order: "asc" },
         },

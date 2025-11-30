@@ -569,7 +569,7 @@ export default function Home() {
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-black dark:text-white font-bold text-sm sm:text-base">
             {isCreatingDefault ? "Creating your first board..." : "Loading your boards..."}
           </p>

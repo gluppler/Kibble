@@ -76,7 +76,10 @@ export async function POST(request: Request) {
     try {
       column = await db.column.findUnique({
         where: { id: columnId },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          boardId: true,
           board: {
             select: {
               id: true,
@@ -121,7 +124,8 @@ export async function POST(request: Request) {
 
     // Get the max order in the column
     const maxOrderTask = await db.task.findFirst({
-      where: { columnId },
+      where: { columnId, archived: false }, // Exclude archived tasks from order calculation
+      select: { order: true }, // Only select order field
       orderBy: { order: "desc" },
     });
 
@@ -160,10 +164,31 @@ export async function POST(request: Request) {
 
     const task = await db.task.create({
       data: taskData,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueDate: true,
+        order: true,
+        locked: true,
+        archived: true,
+        priority: true,
+        createdAt: true,
+        updatedAt: true,
+        columnId: true,
         column: {
-          include: {
-            board: true,
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            boardId: true,
+            board: {
+              select: {
+                id: true,
+                title: true,
+                userId: true,
+              },
+            },
           },
         },
       },

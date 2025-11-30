@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     // Get the max order in the board
     const maxOrderColumn = await db.column.findFirst({
       where: { boardId },
+      select: { order: true }, // Only select order field
       orderBy: { order: "desc" },
     });
 
@@ -32,8 +33,31 @@ export async function POST(request: Request) {
         boardId,
         order,
       },
-      include: {
-        tasks: true,
+      select: {
+        id: true,
+        title: true,
+        order: true,
+        boardId: true,
+        createdAt: true,
+        updatedAt: true,
+        tasks: {
+          where: { archived: false }, // Exclude archived tasks
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            dueDate: true,
+            order: true,
+            locked: true,
+            archived: true,
+            priority: true,
+            createdAt: true,
+            updatedAt: true,
+            columnId: true,
+          },
+          orderBy: { order: "asc" },
+          take: 50, // Limit tasks per column for 0.5GB RAM constraint
+        },
       },
     });
 

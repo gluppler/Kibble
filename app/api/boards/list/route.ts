@@ -25,20 +25,17 @@ export const maxDuration = 30;
  */
 export async function GET() {
   try {
-    // Get session with error handling
     let session;
     try {
       session = await getServerAuthSession();
     } catch (authError) {
       logError("Error getting auth session:", authError);
-      // Security: Generic error message prevents information leakage
       return NextResponse.json(
         { error: "Authentication error" },
         { status: 500 }
       );
     }
 
-    // Check authentication using permission utility
     const authCheck = checkAuthentication(session);
     if (!authCheck.allowed || !session?.user?.id) {
       return NextResponse.json(
@@ -47,8 +44,7 @@ export async function GET() {
       );
     }
 
-    // Security: Validate user ID format using centralized validation
-    // This prevents injection attacks and ensures consistent validation across the app
+    // Validate user ID format (prevents injection attacks)
     const userId = session.user.id;
     if (!validateIdFormat(userId, "userId")) {
       logError("Invalid user ID format:", { userId: userId?.substring(0, 10) });
@@ -58,11 +54,11 @@ export async function GET() {
       );
     }
 
-    // Get all user's non-archived boards with error handling
+    // Get user's non-archived boards
     let boards;
     try {
-      // Security: Prisma automatically sanitizes userId, but we validate it above
-      // Security: Only select safe fields (no userId, no sensitive data)
+      // Prisma automatically sanitizes userId (validated above)
+      // Only select safe fields to reduce data transfer
       boards = await db.board.findMany({
         where: {
           userId: userId, // Validated above
@@ -73,26 +69,21 @@ export async function GET() {
           title: true,
           createdAt: true,
           updatedAt: true,
-          // Explicitly exclude sensitive fields
-          // userId is excluded by design (security)
+          // Explicitly exclude sensitive fields (userId excluded by design)
         },
         orderBy: { createdAt: "desc" },
-        // Security: Add reasonable limit to prevent DoS
-        take: 1000, // Maximum 1000 boards per user
+        take: 50, // Limit for 0.5GB RAM constraint
       });
     } catch (dbError) {
       logError("Database error fetching boards:", dbError);
-      // Security: Generic error message prevents information leakage
       return NextResponse.json(
         { error: "Database error" },
         { status: 500 }
       );
     }
 
-    // Security: Ensure boards is always an array (defensive programming)
+    // Validate and sanitize board data
     const safeBoards = Array.isArray(boards) ? boards : [];
-
-    // Security: Validate and sanitize board data before returning
     const sanitizedBoards = safeBoards.map((board) => ({
       id: typeof board.id === "string" ? board.id : "",
       title: typeof board.title === "string" ? board.title : "",
@@ -100,23 +91,19 @@ export async function GET() {
       updatedAt: board.updatedAt instanceof Date ? board.updatedAt : new Date(),
     }));
 
-    // Return boards with security headers
-    // Note: Cache-Control is set to no-store to prevent stale data
-    // Request deduplication on client-side prevents duplicate requests
+    // Return boards with security headers and 5 second cache
     return NextResponse.json(
       { boards: sanitizedBoards },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Cache-Control": "private, max-age=5, must-revalidate",
           "X-Content-Type-Options": "nosniff",
-          // Add ETag for conditional requests (client can use this for deduplication)
-          "ETag": `"${sanitizedBoards.length}-${Date.now()}"`,
+          "ETag": `"${sanitizedBoards.length}-${Math.floor(Date.now() / 5000)}"`,
         },
       }
     );
   } catch (error) {
     logError("Unexpected error fetching boards:", error);
-    // Security: Generic error message prevents information leakage
     return NextResponse.json(
       { error: "Failed to fetch boards" },
       { status: 500 }

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+// Suppress Buffer deprecation warnings from third-party dependencies
+import "@/lib/suppress-buffer-deprecation";
 
 export const metadata: Metadata = {
   title: {

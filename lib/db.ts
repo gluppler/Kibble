@@ -139,6 +139,8 @@ const createPrismaClient = (): PrismaClient => {
       finalDatabaseUrl = databaseUrl!;
     }
 
+    // Connection pooling handled by Supabase PgBouncer for 0.5GB RAM constraint
+    
     return new PrismaClient({
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
       datasources: {
@@ -146,7 +148,7 @@ const createPrismaClient = (): PrismaClient => {
           url: finalDatabaseUrl,
         },
       },
-      errorFormat: "minimal", // Security: Don't expose detailed errors in production
+      errorFormat: "minimal", // Don't expose detailed errors in production
     });
   } catch (error) {
     logError("Failed to create Prisma client:", error);

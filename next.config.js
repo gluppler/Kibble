@@ -3,9 +3,6 @@
  * 
  * Optimized for production deployment on Vercel.
  * Uses Turbopack (default in Next.js 16) for faster builds.
- * 
- * Note: Webpack configuration removed - Turbopack handles Node.js module
- * fallbacks (fs, net, tls) automatically for client-side code.
  */
 
 /** @type {import('next').NextConfig} */
@@ -14,16 +11,18 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
-  // Note: Buffer deprecation warnings from dependencies (qrcode, otplib, bcryptjs)
-  // are handled by using the latest versions of these packages.
-  // The warnings are non-blocking and don't affect functionality.
+  // Buffer deprecation warnings from dependencies (qrcode, otplib) are suppressed
   
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60, // Cache optimized images for 60 seconds
   },
   
-  // Experimental features for better performance
+  // Server components optimizations
+  serverExternalPackages: ['@prisma/client', 'bcrypt'],
+  
+  // Experimental features
   experimental: {
     optimizePackageImports: ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'framer-motion'],
   },
@@ -56,11 +55,7 @@ const nextConfig = {
     ];
   },
   
-  // Note: Turbopack (default in Next.js 16) automatically handles:
-  // - Node.js module fallbacks (fs, net, tls) for client-side code
-  // - Bundle optimization
-  // - Tree shaking
-  // No custom webpack or turbopack config needed
+  // Turbopack (default in Next.js 16) handles module fallbacks and optimizations
 };
 
 module.exports = nextConfig;

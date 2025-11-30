@@ -36,26 +36,54 @@ export async function GET() {
       );
     }
 
-    // Get all archived boards for the user
+    // Get archived boards for the user (using select with limited results)
     const boards = await db.board.findMany({
       where: {
         userId: session.user.id,
         archived: true,
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        archived: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true,
         columns: {
-          include: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            createdAt: true,
+            updatedAt: true,
             tasks: {
               where: {
                 archived: true, // Include archived tasks in archived boards
               },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                dueDate: true,
+                order: true,
+                locked: true,
+                priority: true,
+                archived: true,
+                archivedAt: true,
+                createdAt: true,
+                updatedAt: true,
+                columnId: true,
+              },
               orderBy: { order: "asc" },
+              take: 30, // Limit for 0.5GB RAM constraint
             },
           },
           orderBy: { order: "asc" },
         },
       },
       orderBy: { archivedAt: "desc" },
+      take: 25, // Limit for 0.5GB RAM constraint
     });
 
     return NextResponse.json(

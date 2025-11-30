@@ -10,9 +10,10 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
+import "@/lib/suppress-buffer-deprecation";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";

@@ -36,7 +36,7 @@ export async function GET() {
       );
     }
 
-    // Get all archived tasks for the user (through board ownership)
+    // Get archived tasks for the user (using select with limited results)
     const tasks = await db.task.findMany({
       where: {
         archived: true,
@@ -46,9 +46,24 @@ export async function GET() {
           },
         },
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueDate: true,
+        order: true,
+        locked: true,
+        priority: true,
+        archived: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        columnId: true,
         column: {
-          include: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
             board: {
               select: {
                 id: true,
@@ -59,6 +74,7 @@ export async function GET() {
         },
       },
       orderBy: { archivedAt: "desc" },
+      take: 200, // Limit for 0.5GB RAM constraint
     });
 
     return NextResponse.json(

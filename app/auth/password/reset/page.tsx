@@ -350,7 +350,7 @@ function PasswordResetForm() {
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin mr-2" />
+                    <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin mr-2" />
                     Checking...
                   </>
                 ) : (
@@ -530,7 +530,7 @@ function PasswordResetForm() {
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin mr-2" />
+                    <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin mr-2" />
                     Resetting...
                   </>
                 ) : (

@@ -22,7 +22,7 @@
  */
 
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { logError, logWarn } from "@/lib/logger";
 
 /**
@@ -64,7 +64,11 @@ export async function isPasswordUnique(
   excludeUserId?: string
 ): Promise<boolean> {
   try {
-    // Get all users with passwords (exclude the current user if provided)
+    // Limit check to first 50 users for memory optimization (0.5GB RAM constraint)
+    // Prevents excessive bcrypt operations and memory usage
+    const MAX_UNIQUENESS_CHECKS = 50;
+    
+    // Get users with passwords (exclude the current user if provided)
     const users = await db.user.findMany({
       where: {
         password: { not: null },
@@ -74,6 +78,7 @@ export async function isPasswordUnique(
         id: true,
         password: true,
       },
+      take: MAX_UNIQUENESS_CHECKS,
     });
 
     // If no other users exist, password is unique
@@ -83,18 +88,25 @@ export async function isPasswordUnique(
 
     // Check if the password matches any existing user's password
     // Early exit if match is found to improve performance
-    for (const user of users) {
-      if (!user.password) continue;
-      try {
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (isMatch) {
-          // Password is already in use - return immediately
-          return false;
-        }
-      } catch (error) {
-        // If comparison fails (e.g., invalid hash), treat as no match and continue
-        logWarn(`Error comparing password for user ${user.id}:`, error);
-        continue;
+    // Use Promise.all with limit to parallelize comparisons (but limit concurrency)
+    const BATCH_SIZE = 10; // Process 10 comparisons at a time to avoid overwhelming CPU
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
+      const batch = users.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (user) => {
+          if (!user.password) return false;
+          try {
+            return await bcrypt.compare(password, user.password);
+          } catch (error) {
+            logWarn(`Error comparing password for user ${user.id}:`, error);
+            return false;
+          }
+        })
+      );
+      
+      // Early exit if any match found
+      if (results.some((isMatch) => isMatch)) {
+        return false;
       }
     }
 

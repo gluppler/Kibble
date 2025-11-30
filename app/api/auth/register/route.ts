@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { z } from "zod";
 import { validatePassword } from "@/lib/password-utils";
 import { logError } from "@/lib/logger";

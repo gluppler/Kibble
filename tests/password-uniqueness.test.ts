@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { db } from "@/lib/db";
 import { isPasswordUnique, validatePassword } from "@/lib/password-utils";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 describe("Password Uniqueness", () => {
   // Clean up test users before and after each test to ensure isolation

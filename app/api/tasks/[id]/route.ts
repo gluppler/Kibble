@@ -31,10 +31,28 @@ export async function PATCH(
     // Get existing task for validation
     const existingTask = await db.task.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueDate: true,
+        order: true,
+        locked: true,
+        archived: true,
+        priority: true,
+        columnId: true,
         column: {
-          include: {
-            board: true,
+          select: {
+            id: true,
+            title: true,
+            boardId: true,
+            board: {
+              select: {
+                id: true,
+                title: true,
+                userId: true,
+              },
+            },
           },
         },
       },
@@ -94,11 +112,10 @@ export async function PATCH(
       updateData.priority = validPriorities.includes(priority) ? priority : "normal";
     }
     
-    // Handle column and order changes - CRITICAL: Always process column changes first
+    // Handle column and order changes (always process column changes first)
     const isMovingColumn = columnId !== undefined && columnId !== existingTask.columnId;
     
-    // CRITICAL: If columnId is provided and different, we MUST update it
-    // Store finalColumnId at function scope so it's available for verification
+    // Store finalColumnId at function scope for verification
     let finalColumnId = existingTask.columnId;
     let finalOrder = existingTask.order;
     
@@ -106,14 +123,23 @@ export async function PATCH(
       finalColumnId = columnId !== undefined ? columnId : existingTask.columnId;
       finalOrder = order !== undefined ? order : existingTask.order;
       
-      // Processing task update
-      
       // Get the new column to check its title (always fetch fresh from DB)
       let newColumn = null;
       if (isMovingColumn) {
         newColumn = await db.column.findUnique({ 
           where: { id: columnId },
-          include: { board: true }
+          select: {
+            id: true,
+            title: true,
+            boardId: true,
+            board: {
+              select: {
+                id: true,
+                title: true,
+                userId: true,
+              },
+            },
+          },
         });
         
         if (!newColumn) {
@@ -123,38 +149,34 @@ export async function PATCH(
             { status: 404 }
           );
         }
-        
-        // Found target column
       } else {
         newColumn = existingTask.column;
       }
       
-      // If moving to a different column - THIS IS CRITICAL FOR PERSISTENCE
       if (isMovingColumn && newColumn) {
         // Auto-lock when moved to "Done" column
         if (newColumn.title === "Done") {
           updateData.locked = true;
           updateData.movedToDoneAt = new Date();
-          // Task moved to Done column - locking task
         } else if (existingTask.column.title === "Done") {
           // Unlock if moving away from Done
           updateData.locked = false;
           updateData.movedToDoneAt = null;
-          // If task was archived, unarchive it when moving away from Done
+          // Unarchive if task was archived
           if (existingTask.archived) {
             updateData.archived = false;
             updateData.archivedAt = null;
           }
-          // Task moved away from Done column - unlocking task
         }
         
-        // Get all tasks in the new column (excluding the one being moved and archived tasks)
+        // Get all tasks in the new column (only select order field)
         const newColumnTasks = await db.task.findMany({
           where: { 
             columnId: finalColumnId,
             id: { not: existingTask.id },
             archived: false, // Exclude archived tasks from order calculations
           },
+          select: { order: true }, // Only select order field
           orderBy: { order: "asc" },
         });
         
@@ -195,19 +217,20 @@ export async function PATCH(
           },
         });
         
-        // CRITICAL: Always update columnId and order when moving columns
-        // This MUST be set for persistence to work
+        // Always update columnId and order when moving columns
         updateData.columnId = finalColumnId;
         updateData.order = adjustedOrder;
       }
       // If reordering within same column (not moving columns)
       else if (!isMovingColumn && order !== undefined && order !== existingTask.order) {
+        // Only select order field
         const allTasks = await db.task.findMany({
           where: { 
             columnId: existingTask.columnId,
             id: { not: existingTask.id },
             archived: false, // Exclude archived tasks from order calculations
           },
+          select: { order: true }, // Only select order field
           orderBy: { order: "asc" },
         });
         
@@ -244,15 +267,15 @@ export async function PATCH(
       }
     }
 
-    // CRITICAL: Verify updateData contains columnId if we're moving columns
+    // Verify updateData contains columnId if we're moving columns
     if (isMovingColumn && !updateData.columnId) {
-      logError(`[TASK UPDATE] ERROR: Moving column but columnId not set in updateData!`, {
+      logError(`[TASK UPDATE] Moving column but columnId not set in updateData`, {
         taskId: id,
         isMovingColumn,
         updateData,
       });
       return NextResponse.json(
-        { error: "Internal error: Column update failed" },
+        { error: "Column update failed" },
         { status: 500 }
       );
     }
@@ -263,41 +286,54 @@ export async function PATCH(
       return NextResponse.json(existingTask);
     }
 
-    // Perform the update - ensure it's committed
-    let task;
-    try {
-      task = await db.task.update({
-        where: { id },
-        data: updateData,
-        include: {
-          column: {
-            include: {
-              board: true,
+    // Update task
+    const task = await db.task.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueDate: true,
+        order: true,
+        locked: true,
+        archived: true,
+        priority: true,
+        createdAt: true,
+        updatedAt: true,
+        columnId: true,
+        column: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            boardId: true,
+            board: {
+              select: {
+                id: true,
+                title: true,
+                userId: true,
+              },
             },
           },
         },
-      });
-      
-      // Verify the update was successful by reading it back
+      },
+    });
+    
+    // Verify update persisted if moving columns
+    if (isMovingColumn) {
       const verifyTask = await db.task.findUnique({
         where: { id },
-        select: { id: true, columnId: true, order: true, locked: true },
+        select: { id: true, columnId: true },
       });
       
-      // Double-check the update persisted
-      if (isMovingColumn && verifyTask) {
-        if (verifyTask.columnId !== finalColumnId) {
-          logError(`[TASK UPDATE] CRITICAL ERROR: Update did not persist! Expected columnId ${finalColumnId}, got ${verifyTask.columnId}`);
-          return NextResponse.json(
-            { error: "Update did not persist correctly" },
-            { status: 500 }
-          );
-        }
-        // Verification passed: columnId correctly updated
+      if (verifyTask && verifyTask.columnId !== finalColumnId) {
+        logError(`[TASK UPDATE] Update did not persist: expected ${finalColumnId}, got ${verifyTask.columnId}`);
+        return NextResponse.json(
+          { error: "Update did not persist correctly" },
+          { status: 500 }
+        );
       }
-    } catch (updateError) {
-      logError(`[TASK UPDATE] Database update failed:`, updateError);
-      throw updateError;
     }
 
     return NextResponse.json(task);

@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 // Mock dependencies
 vi.mock("@/lib/db", () => ({
@@ -46,7 +46,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true })),
 }));
 
-vi.mock("bcryptjs", () => ({
+vi.mock("bcrypt", () => ({
   default: {
     hash: vi.fn(),
     compare: vi.fn(),

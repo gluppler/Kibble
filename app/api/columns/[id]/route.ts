@@ -31,8 +31,18 @@ export async function PATCH(
     // Get column for order update
     const existingColumn = await db.column.findUnique({
       where: { id },
-      include: {
-        board: true,
+      select: {
+        id: true,
+        title: true,
+        order: true,
+        boardId: true,
+        board: {
+          select: {
+            id: true,
+            title: true,
+            userId: true,
+          },
+        },
       },
     });
 
@@ -51,12 +61,13 @@ export async function PATCH(
     // Validate order is a number
     const newOrder = typeof order === "number" ? Math.max(0, order) : existingColumn.order;
 
-    // Get all columns in the same board (excluding the one being moved)
+    // Get all columns in the same board (only select order field)
     const allColumns = await db.column.findMany({
       where: {
         boardId: existingColumn.boardId,
         id: { not: id },
       },
+      select: { order: true }, // Only select order field
       orderBy: { order: "asc" },
     });
 
@@ -101,10 +112,37 @@ export async function PATCH(
     const updatedColumn = await db.column.update({
       where: { id },
       data: { order: adjustedOrder },
-      include: {
-        board: true,
+      select: {
+        id: true,
+        title: true,
+        order: true,
+        boardId: true,
+        createdAt: true,
+        updatedAt: true,
+        board: {
+          select: {
+            id: true,
+            title: true,
+            userId: true,
+          },
+        },
         tasks: {
+          where: { archived: false }, // Exclude archived tasks
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            dueDate: true,
+            order: true,
+            locked: true,
+            archived: true,
+            priority: true,
+            createdAt: true,
+            updatedAt: true,
+            columnId: true,
+          },
           orderBy: { order: "asc" },
+          take: 50, // Limit tasks per column for 0.5GB RAM constraint
         },
       },
     });

@@ -369,7 +369,7 @@ export default function SettingsPage() {
               >
                 {mfaLoading ? (
                   <>
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin" />
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                     Setting up...
                   </>
                 ) : (
@@ -478,7 +478,7 @@ export default function SettingsPage() {
                 >
                   {mfaLoading ? (
                     <>
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin" />
+                      <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                       Verifying...
                     </>
                   ) : (
@@ -878,7 +878,7 @@ export default function SettingsPage() {
                     >
                       {isDeleting ? (
                         <>
-                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin" />
+                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                           Deleting...
                         </>
                       ) : (
@@ -989,7 +989,7 @@ export default function SettingsPage() {
                     >
                       {mfaLoading ? (
                         <>
-                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin" />
+                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white dark:border-black border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                           Disabling...
                         </>
                       ) : (

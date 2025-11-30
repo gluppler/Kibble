@@ -31,42 +31,34 @@ export async function POST(request: Request) {
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-    // Find all "Done" columns for this user's boards
-    const doneColumns = await db.column.findMany({
+    // Direct query to find tasks to archive
+    const tasksToArchive = await db.task.findMany({
       where: {
-        title: "Done",
-        board: {
-          userId: session.user.id,
-        },
-      },
-      include: {
-        tasks: {
-          where: {
-            movedToDoneAt: {
-              not: null,
-              lte: twentyFourHoursAgo,
-            },
-            locked: true,
-            archived: false, // Only archive tasks that aren't already archived
+        column: {
+          title: "Done",
+          board: {
+            userId: session.user.id,
           },
         },
+        movedToDoneAt: {
+          not: null,
+          lte: twentyFourHoursAgo,
+        },
+        locked: true,
+        archived: false, // Only archive tasks that aren't already archived
       },
-    });
-
-    // Collect all task IDs to archive
-    const taskIdsToArchive: string[] = [];
-    doneColumns.forEach((column) => {
-      column.tasks.forEach((task) => {
-        taskIdsToArchive.push(task.id);
-      });
+      select: {
+        id: true, // Only select ID for updateMany
+      },
     });
 
     // Archive tasks in batch
-    if (taskIdsToArchive.length > 0) {
+    if (tasksToArchive.length > 0) {
+      const taskIds = tasksToArchive.map((task) => task.id);
       await db.task.updateMany({
         where: {
           id: {
-            in: taskIdsToArchive,
+            in: taskIds,
           },
         },
         data: {
@@ -78,8 +70,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      archivedCount: taskIdsToArchive.length,
-      message: `Archived ${taskIdsToArchive.length} task(s) that were in Done column for more than 24 hours`,
+      archivedCount: tasksToArchive.length,
+      message: `Archived ${tasksToArchive.length} task(s) that were in Done column for more than 24 hours`,
     });
   } catch (error) {
     logError("Error archiving tasks:", error);
@@ -105,33 +97,35 @@ export async function GET(request: Request) {
       );
     }
 
-    // Find all tasks in "Done" columns that are locked and not archived
-    const doneColumns = await db.column.findMany({
+    // Direct query to find tasks (limited results)
+    const tasks = await db.task.findMany({
       where: {
-        title: "Done",
-        board: {
-          userId: session.user.id,
-        },
-      },
-      include: {
-        tasks: {
-          where: {
-            locked: true,
-            archived: false, // Only show non-archived tasks
-            movedToDoneAt: {
-              not: null,
-            },
-          },
-          orderBy: {
-            movedToDoneAt: "asc",
+        column: {
+          title: "Done",
+          board: {
+            userId: session.user.id,
           },
         },
+        locked: true,
+        archived: false, // Only show non-archived tasks
+        movedToDoneAt: {
+          not: null,
+        },
       },
+      select: {
+        id: true,
+        title: true,
+        movedToDoneAt: true,
+      },
+      orderBy: {
+        movedToDoneAt: "asc",
+      },
+      take: 50, // Limit for 0.5GB RAM constraint
     });
 
     // Calculate time until archive for each task
-    const tasksWithArchiveInfo = doneColumns.flatMap((column) =>
-      column.tasks.map((task) => {
+    const tasksWithArchiveInfo = tasks
+      .map((task) => {
         if (!task.movedToDoneAt) return null;
         
         const movedAt = new Date(task.movedToDoneAt);
@@ -148,8 +142,8 @@ export async function GET(request: Request) {
           hoursUntilArchive: Math.round(hoursUntilArchive * 10) / 10,
           willBeArchivedSoon: hoursUntilArchive <= 1, // Within 1 hour
         };
-      }).filter(Boolean)
-    );
+      })
+      .filter((task): task is NonNullable<typeof task> => task !== null);
 
     return NextResponse.json({
       tasks: tasksWithArchiveInfo,

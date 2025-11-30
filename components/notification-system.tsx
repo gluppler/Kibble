@@ -90,20 +90,29 @@ export function NotificationSystem() {
 
         const { tasks } = data;
 
-        // Check each task for alerts
-        // Permission: API route ensures only user's own tasks are returned
-        // Duplicate detection in alert context prevents duplicate alerts
-        for (const task of tasks) {
-          // Safety check: ensure task is valid object
-          if (!task || typeof task !== 'object') continue;
+        // Process tasks in batches to prevent UI blocking
+        const BATCH_SIZE = 20;
+        for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+          const batch = tasks.slice(i, i + BATCH_SIZE);
           
-          if (task.dueDate && !task.locked) {
-            try {
-              checkTaskForAlert(task);
-            } catch (taskError) {
-              // Log error but continue processing other tasks
-              logError("Error checking task for alert:", taskError);
+          // Process batch
+          for (const task of batch) {
+            // Safety check: ensure task is valid object
+            if (!task || typeof task !== 'object') continue;
+            
+            if (task.dueDate && !task.locked) {
+              try {
+                checkTaskForAlert(task);
+              } catch (taskError) {
+                // Log error but continue processing other tasks
+                logError("Error checking task for alert:", taskError);
+              }
             }
+          }
+          
+          // Yield to event loop between batches to prevent UI blocking
+          if (i + BATCH_SIZE < tasks.length) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
           }
         }
 
@@ -120,13 +129,13 @@ export function NotificationSystem() {
       // Only check if notifications are enabled
       if (notificationPreferences.notificationsEnabled && notificationPreferences.dueDateAlertsEnabled) {
         checkDueDates();
-        // Check every 5 minutes (reduced from immediate + interval to just interval)
+        // Check every 10 minutes to reduce server load while providing timely alerts
         const interval = setInterval(() => {
           // Re-check preferences on each interval to respect real-time changes
           if (notificationPreferences.notificationsEnabled && notificationPreferences.dueDateAlertsEnabled) {
             checkDueDates();
           }
-        }, 5 * 60 * 1000);
+        }, 10 * 60 * 1000); // 10 minutes instead of 5
 
         return () => clearInterval(interval);
       }

@@ -9,13 +9,41 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-336791?style=flat-square&logo=postgresql)
 ![Vitest](https://img.shields.io/badge/Vitest-4.0-6E9F18?style=flat-square&logo=vitest)
 
+## 📖 Overview
+
+Kibble is a production-ready task management application built with a **principled, secure-code-first mindset**. The application prioritizes core functionality, security, and maintainability, ensuring that essential features are robust and reliable.
+
+### Development Philosophy
+
+Kibble was developed following these key principles:
+
+- **Security-First Approach**: All features are built with security and validation at every layer
+- **Type Safety**: Full TypeScript implementation with strict mode for compile-time safety
+- **Test-Driven Development**: Comprehensive test suite with 462 test cases covering edge cases
+- **Clean Code Practices**: Maintainable, readable code following industry best practices
+- **Feature Completeness**: Core functionality prioritized over UI/UX enhancements
+- **Iterative Refinement**: Continuous improvement with focus on reliability and performance
+
+### Key Features Focus
+
+The application emphasizes:
+
+1. **Class-Based Task Management**: Organize tasks by class, subject, or project with complete data isolation
+2. **Intelligent Alerts**: Real-time notifications for upcoming and overdue tasks
+3. **Priority Tagging**: Mark and filter tasks by priority (Normal/High)
+4. **Search & Filter**: Real-time search across tasks, boards, and archives
+5. **Archive System**: Comprehensive archiving with board-task relationships and restore protection
+
 ## 📋 Table of Contents
 
+- [Overview](#-overview)
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
 - [Architecture](#-architecture)
+- [Development Approach](#-development-approach)
+- [Feature Flows](#-feature-flows)
 - [API Documentation](#-api-documentation)
 - [Database Schema](#-database-schema)
 - [Security](#-security)
@@ -145,7 +173,7 @@
 - **NextAuth.js v5** - Authentication and session management
 - **Prisma 6.19** - Next-generation ORM with type safety
 - **PostgreSQL** - Robust relational database
-- **bcryptjs** - Secure password hashing
+- **bcrypt** - Secure password hashing (native implementation)
 - **Zod 4.1** - Runtime schema validation
 - **otplib** - TOTP (Time-based One-Time Password) for MFA
 - **qrcode** - QR code generation for MFA setup
@@ -164,6 +192,44 @@
 - **ESLint** - Code linting with Next.js rules
 - **TypeScript** - Static type checking
 - **Sharp** - Image processing for icon generation
+
+### Technical Decisions Rationale
+
+**Why Next.js with TypeScript?**
+- Modern, full-stack framework with excellent developer experience
+- Type safety prevents runtime errors and improves maintainability
+- Serverless-friendly architecture perfect for Vercel deployment
+- Built-in optimizations (code splitting, image optimization, etc.)
+
+**Why Prisma ORM?**
+- Type-safe database queries with autocomplete
+- Schema migrations with version control
+- Excellent developer experience with Prisma Studio
+- Prevents SQL injection through query builder
+
+**Why PostgreSQL?**
+- Relational structure ideal for complex data relationships
+- ACID compliance for data integrity
+- Excellent performance with proper indexing
+- Widely supported and reliable
+
+**Why @dnd-kit?**
+- Lightweight and performant drag-and-drop library
+- Excellent mobile touch support
+- Flexible API for custom drag behaviors
+- Better than alternatives (react-beautiful-dnd) for modern React
+
+**Why Zod?**
+- Runtime schema validation for API inputs
+- Type inference from schemas
+- Clear error messages for validation failures
+- Prevents invalid data from reaching database
+
+**Why Vitest?**
+- Fast test execution with Vite
+- Excellent TypeScript support
+- Compatible with Jest API for easy migration
+- Built-in coverage reporting
 
 ## 🚀 Getting Started
 
@@ -347,6 +413,29 @@ kibble/
 
 ## 🏗️ Architecture
 
+### High-Level Architecture
+
+```mermaid
+flowchart TD
+    A[Client Browser/Next.js] --> B[Next.js API Routes]
+    B --> C[Prisma ORM]
+    C --> D[PostgreSQL Database]
+    B --> E[NextAuth.js Authentication]
+    B --> F[Permission Checks]
+    A --> G[React Components]
+    G --> H[Context API State]
+    G --> I[localStorage Events]
+```
+
+**Layer Responsibilities:**
+
+- **Client (Browser/Next.js)**: Handles UI, drag-and-drop interactions, real-time search, and communicates with API
+- **API Routes / Server**: Manages requests, input validation (Zod), business logic, authentication, and authorization
+- **Prisma ORM**: Type-safe database queries and schema management
+- **PostgreSQL Database**: Stores users, boards, columns, tasks, sessions, and authentication data
+
+Security, validation, and testable code are enforced at every layer.
+
 ### Application Flow
 
 1. **Authentication**: User signs in via NextAuth.js → JWT session created
@@ -382,6 +471,134 @@ User Action → Component → API Route → Permission Check → Database → Re
 - **Permission Layering**: Authentication → Ownership → Resource validation
 - **Event-Driven Architecture**: Cross-tab synchronization via localStorage events
 - **Memoization**: Extensive use of `useMemo`, `useCallback`, and `React.memo` for performance
+
+## 🎯 Development Approach
+
+Kibble was developed following a **principled, secure-code-first mindset**, focusing on high-quality, maintainable, and secure software.
+
+### Key Development Principles
+
+1. **Principle-Driven Planning**
+   - Planned from start to finish based on Clean Code, Secure Code, TDD, and industry best practices
+   - Mapped out internal feature workflows, validation, and database structure
+
+2. **Feature-First Development**
+   - Core features (class-based boards, alerts, search, priority) refined before UI/UX enhancements
+   - Each feature implemented with comprehensive test coverage
+
+3. **Tool Selection Rationale**
+   - **Next.js with TypeScript**: Modern, full-stack framework with type safety
+   - **Prisma ORM**: Type-safe database queries and schema management
+   - **PostgreSQL**: Relational structure ideal for tasks, users, boards, and relationships
+   - **@dnd-kit**: Lightweight, flexible drag-and-drop library for sortable boards
+   - **Zod**: Runtime schema validation for input security
+   - **Vitest**: Fast unit testing framework with excellent TypeScript support
+
+4. **Iterative Refinement & Security**
+   - Each component developed with maintainability, testability, and security in mind
+   - Continuous code cleanup, optimization, and redundancy removal
+   - Comprehensive test coverage (462 tests) ensuring reliability
+
+5. **Code Quality Standards**
+   - Strict TypeScript with no `any` types
+   - Nullish coalescing (`??`) and optional chaining (`?.`) for safe operations
+   - Component memoization for performance optimization
+   - Centralized error handling and logging
+
+## 🔄 Feature Flows
+
+### Task Creation & Management Flow
+
+```mermaid
+flowchart TD
+    A[User selects board] --> B[User creates task in To-Do column]
+    B --> C{Input validation}
+    C -->|Valid| D[Store task with priority in database]
+    D --> E[Update UI with optimistic update]
+    E --> F[API confirms success]
+    F --> G[Task appears in board]
+    C -->|Invalid| H[Show validation error]
+    G --> I[User can drag & drop between columns]
+    I --> J{Column is Done?}
+    J -->|Yes| K[Task locks & movedToDoneAt timestamp]
+    K --> L[Auto-archive after 24 hours]
+    J -->|No| M[Task remains editable]
+```
+
+### Search & Filter Flow
+
+```mermaid
+flowchart TD
+    A[User types in search bar] --> B[Real-time query normalization]
+    B --> C[Fuzzy matching across fields]
+    C --> D{Filter options selected?}
+    D -->|Yes| E[Apply priority/type filters]
+    D -->|No| F[Search all fields]
+    E --> G[Filter results]
+    F --> G
+    G --> H{Results found?}
+    H -->|Yes| I[Display filtered tasks/boards]
+    H -->|No| J[Show empty state message]
+    I --> K[User can interact with results]
+```
+
+### Archive & Restore Flow
+
+```mermaid
+flowchart TD
+    A[User archives board] --> B[Transaction: Archive board + all tasks]
+    B --> C[Update archived flags & timestamps]
+    C --> D[Emit archive event]
+    D --> E[Update UI across all tabs]
+    E --> F[Board appears in Archive page]
+    F --> G{User wants to restore?}
+    G -->|Yes| H{Board or task?}
+    H -->|Board| I[Transaction: Restore board + all tasks]
+    H -->|Task| J{Task's board archived?}
+    J -->|Yes| K[Show error: Restore board first]
+    J -->|No| L[Restore task]
+    I --> M[Emit restore event]
+    L --> M
+    M --> N[Update UI immediately]
+    K --> O[User must restore board first]
+```
+
+### Alert Generation Flow
+
+```mermaid
+flowchart TD
+    A[User sets/edits due date] --> B[System validates due date]
+    B -->|Valid| C[Store due date in database]
+    C --> D[Background scheduler checks tasks]
+    D --> E{Task due soon or overdue?}
+    E -->|Yes| F[Generate alert]
+    E -->|No| G[Wait until next check]
+    F --> H[Check browser notification permission]
+    H -->|Granted| I[Show browser notification]
+    H -->|Denied| J[Show in-app alert]
+    I --> K[Alert persists across refreshes]
+    J --> K
+    G --> D
+```
+
+### Authentication & MFA Flow
+
+```mermaid
+flowchart TD
+    A[User attempts login] --> B[NextAuth validates credentials]
+    B -->|Invalid| C[Show error message]
+    B -->|Valid| D{MFA enabled?}
+    D -->|No| E[Create session & redirect]
+    D -->|Yes| F[Request TOTP code]
+    F --> G[User enters code]
+    G --> H{Code valid?}
+    H -->|Yes| E
+    H -->|No| I{Backup code?}
+    I -->|Yes| J[Validate backup code]
+    I -->|No| C
+    J -->|Valid| E
+    J -->|Invalid| C
+```
 
 ## 🔌 API Documentation
 
@@ -636,7 +853,7 @@ All relationships use `onDelete: Cascade` for automatic cleanup.
 
 ### Authentication
 - **NextAuth.js v5**: Industry-standard authentication
-- **bcryptjs**: Password hashing with appropriate salt rounds
+- **bcrypt**: Password hashing with appropriate salt rounds (native implementation, no Buffer deprecation warnings)
 - **JWT Sessions**: Stateless session management
 - **MFA (TOTP)**: Time-based One-Time Password for two-factor authentication
 - **Backup Codes**: Secure backup codes for MFA recovery

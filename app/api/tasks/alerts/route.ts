@@ -37,9 +37,7 @@ export async function GET() {
       );
     }
 
-    // Fetch all tasks with due dates in a single query
-    // This avoids N+1 queries by getting all tasks at once
-    // Security: Exclude archived tasks and tasks in archived boards
+    // Fetch tasks with due dates (avoids N+1 queries, excludes archived, uses select with limits)
     const tasks = await db.task.findMany({
       where: {
         column: {
@@ -73,6 +71,7 @@ export async function GET() {
           },
         },
       },
+      take: 200, // Limit for 0.5GB RAM constraint
     });
 
     return NextResponse.json(

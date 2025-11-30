@@ -26,16 +26,40 @@ export async function GET(
       );
     }
 
+    // Use select to only fetch needed fields
     const board = await db.board.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         columns: {
-          include: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            createdAt: true,
+            updatedAt: true,
             tasks: {
               where: {
                 archived: false, // Exclude archived tasks from main board view
               },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                dueDate: true,
+                order: true,
+                locked: true,
+                priority: true,
+                createdAt: true,
+                updatedAt: true,
+                columnId: true,
+              },
               orderBy: { order: "asc" },
+              take: 50, // Limit tasks per column for 0.5GB RAM constraint
             },
           },
           orderBy: { order: "asc" },
@@ -83,17 +107,41 @@ export async function PATCH(
       );
     }
 
+    // Use select to only fetch needed fields
     const board = await db.board.update({
       where: { id },
       data: { title: title.trim() },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         columns: {
-          include: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            createdAt: true,
+            updatedAt: true,
             tasks: {
               where: {
                 archived: false, // Exclude archived tasks from main board view
               },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                dueDate: true,
+                order: true,
+                locked: true,
+                priority: true,
+                createdAt: true,
+                updatedAt: true,
+                columnId: true,
+              },
               orderBy: { order: "asc" },
+              take: 50, // Limit tasks per column for 0.5GB RAM constraint
             },
           },
           orderBy: { order: "asc" },

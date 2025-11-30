@@ -13,12 +13,19 @@
  * - Time window tolerance for TOTP verification (accounts for clock skew)
  * - QR code generation for easy authenticator app setup
  * 
+ * Buffer Security Policy:
+ * - The unsafe Buffer() constructor is disallowed due to security risks (memory leaks)
+ * - Only safe Buffer methods are used: Buffer.from(), Buffer.alloc(), or Buffer.allocUnsafe()
+ * - crypto.randomBytes() returns a Buffer safely and is used for backup code generation
+ * - All Buffer usage is validated by automated tests (see tests/mfa-buffer-security.test.ts)
+ * 
  * @module lib/mfa-utils
  */
 
+import "@/lib/suppress-buffer-deprecation";
 import { authenticator } from "otplib";
 import { toDataURL } from "qrcode";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { logError } from "@/lib/logger";
 

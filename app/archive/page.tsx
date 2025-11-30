@@ -246,13 +246,13 @@ export default function ArchivePage() {
       // Clear any existing interval
       if (intervalId) clearInterval(intervalId);
 
-      // Poll every 30 seconds
+      // Poll every 60 seconds to reduce server load while providing reasonable update frequency
       intervalId = setInterval(() => {
         // Only poll if tab is visible and initial load is complete
         if (typeof document !== "undefined" && !document.hidden && hasInitialLoadRef.current) {
           fetchArchivedItems(true); // true = silent refresh (no loading spinner)
         }
-      }, 30 * 1000); // 30 seconds
+      }, 60 * 1000); // 60 seconds instead of 30
     };
 
     /**
@@ -778,7 +778,7 @@ export default function ArchivePage() {
                           >
                             {restoring === task.id ? (
                               <>
-                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                                 Restoring...
                               </>
                             ) : (
@@ -796,7 +796,7 @@ export default function ArchivePage() {
                           >
                             {deleting === task.id ? (
                               <>
-                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                                 Deleting...
                               </>
                             ) : (
@@ -880,7 +880,7 @@ export default function ArchivePage() {
                             >
                               {restoring === board.id ? (
                                 <>
-                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                                   Restoring...
                                 </>
                               ) : (
@@ -898,7 +898,7 @@ export default function ArchivePage() {
                             >
                               {deleting === board.id ? (
                                 <>
-                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+                                  <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent dark:border-t-transparent rounded-full animate-spin" />
                                   Deleting...
                                 </>
                               ) : (
