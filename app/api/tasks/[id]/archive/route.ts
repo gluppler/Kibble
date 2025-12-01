@@ -58,11 +58,19 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      task,
-      message: "Task archived successfully",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        task,
+        message: "Task archived successfully",
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error archiving task:", error);
     return NextResponse.json(
@@ -154,11 +162,19 @@ export async function DELETE(
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      task,
-      message: "Task restored successfully",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        task,
+        message: "Task restored successfully",
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error unarchiving task:", error);
     return NextResponse.json(

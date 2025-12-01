@@ -32,7 +32,20 @@ interface BoardTableViewProps {
  */
 export const BoardTableView = memo(function BoardTableView({ board, onTaskEdit, onTaskDelete, onTaskArchive }: BoardTableViewProps) {
   const sortedColumns = useMemo(() => {
-    return [...board.columns].sort((a, b) => a.order - b.order);
+    // Optimized for 2 vCores: Check if already sorted before sorting
+    const cols = board.columns;
+    if (cols.length <= 1) return cols;
+    
+    // Check if already sorted
+    let isSorted = true;
+    for (let i = 1; i < cols.length; i++) {
+      if (cols[i - 1].order > cols[i].order) {
+        isSorted = false;
+        break;
+      }
+    }
+    
+    return isSorted ? cols : [...cols].sort((a, b) => a.order - b.order);
   }, [board.columns]);
 
   // Flatten all tasks with their column information

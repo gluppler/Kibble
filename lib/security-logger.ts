@@ -36,7 +36,8 @@ export type SecurityEventType =
   | "mfa_verification_failed"
   | "authentication_failed"
   | "permission_denied"
-  | "unauthorized_access_attempt";
+  | "unauthorized_access_attempt"
+  | "invalid_user_session";
 
 /**
  * Structure of a security event log entry.

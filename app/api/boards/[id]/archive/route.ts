@@ -81,12 +81,20 @@ export async function POST(
       };
     });
 
-    return NextResponse.json({
-      success: true,
-      board: result.board,
-      archivedTasksCount: result.archivedTasksCount,
-      message: `Board and ${result.archivedTasksCount} task(s) archived successfully`,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        board: result.board,
+        archivedTasksCount: result.archivedTasksCount,
+        message: `Board and ${result.archivedTasksCount} task(s) archived successfully`,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error archiving board:", error);
     return NextResponse.json(
@@ -155,12 +163,20 @@ export async function DELETE(
       };
     });
 
-    return NextResponse.json({
-      success: true,
-      board: result.board,
-      restoredTasksCount: result.restoredTasksCount,
-      message: `Board and ${result.restoredTasksCount} task(s) restored successfully`,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        board: result.board,
+        restoredTasksCount: result.restoredTasksCount,
+        message: `Board and ${result.restoredTasksCount} task(s) restored successfully`,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error unarchiving board:", error);
     return NextResponse.json(

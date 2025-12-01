@@ -10,6 +10,7 @@
 
 "use client";
 
+import { memo, useCallback, useMemo } from "react";
 import { LayoutGrid, Table, List, Columns } from "lucide-react";
 import { useLayout, type LayoutType } from "@/contexts/layout-context";
 import { motion } from "framer-motion";
@@ -61,19 +62,25 @@ const layoutOptions: Array<{
  * - Locked icon sizes to prevent layout shifts
  * - Proper flex alignment matching desktop
  */
-export function LayoutSelector() {
+export const LayoutSelector = memo(function LayoutSelector() {
   const { layout, setLayout } = useLayout();
+
+  const handleLayoutChange = useCallback((value: LayoutType) => {
+    setLayout(value);
+  }, [setLayout]);
+
+  const memoizedOptions = useMemo(() => layoutOptions, []);
 
   return (
     <div className="flex items-center justify-center gap-1 bg-white dark:bg-black border border-black/10 dark:border-white/10 rounded-lg p-1">
-      {layoutOptions.map((option) => {
+      {memoizedOptions.map((option) => {
         const Icon = option.icon;
         const isActive = layout === option.value;
 
         return (
           <motion.button
             key={option.value}
-            onClick={() => setLayout(option.value)}
+            onClick={() => handleLayoutChange(option.value)}
             className={`relative flex items-center justify-center gap-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
               isActive
                 ? "bg-black dark:bg-white text-white dark:text-black shadow-sm"
@@ -113,4 +120,6 @@ export function LayoutSelector() {
       })}
     </div>
   );
-}
+});
+
+LayoutSelector.displayName = "LayoutSelector";

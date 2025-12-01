@@ -61,7 +61,13 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(column, { status: 201 });
+    return NextResponse.json(column, {
+      status: 201,
+      headers: {
+        "Cache-Control": "private, max-age=2, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     logError("Error creating column:", error);
     return NextResponse.json(

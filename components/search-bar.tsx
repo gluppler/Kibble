@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import { Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -49,7 +49,7 @@ interface SearchBarProps {
  * Renders a minimal search bar with optional filter chips.
  * Uses debouncing to optimize search performance.
  */
-export function SearchBar({
+export const SearchBar = memo(function SearchBar({
   searchQuery,
   onSearchChange,
   activeFilter = "all",
@@ -196,4 +196,6 @@ export function SearchBar({
       )}
     </div>
   );
-}
+});
+
+SearchBar.displayName = "SearchBar";

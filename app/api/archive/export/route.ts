@@ -110,6 +110,8 @@ export async function GET(request: Request) {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "private, max-age=0, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     } else {
@@ -172,6 +174,8 @@ export async function GET(request: Request) {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "private, max-age=0, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     }

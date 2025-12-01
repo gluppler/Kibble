@@ -87,26 +87,24 @@ export async function isPasswordUnique(
     }
 
     // Check if the password matches any existing user's password
+    // Optimized for 2 vCores: Reduced batch size, sequential processing for better CPU utilization
     // Early exit if match is found to improve performance
-    // Use Promise.all with limit to parallelize comparisons (but limit concurrency)
-    const BATCH_SIZE = 10; // Process 10 comparisons at a time to avoid overwhelming CPU
+    const BATCH_SIZE = 5; // Reduced from 10 to 5 for 2 vCores (better CPU utilization)
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       const batch = users.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(
-        batch.map(async (user) => {
-          if (!user.password) return false;
-          try {
-            return await bcrypt.compare(password, user.password);
-          } catch (error) {
-            logWarn(`Error comparing password for user ${user.id}:`, error);
-            return false;
-          }
-        })
-      );
       
-      // Early exit if any match found
-      if (results.some((isMatch) => isMatch)) {
-        return false;
+      // Process sequentially for 2 vCores (better than parallel for limited cores)
+      for (const user of batch) {
+        if (!user.password) continue;
+        try {
+          const isMatch = await bcrypt.compare(password, user.password);
+          if (isMatch) {
+            return false; // Early exit on match
+          }
+        } catch (error) {
+          logWarn(`Error comparing password for user ${user.id}:`, error);
+          // Continue on error (fail open)
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import type { Task } from "@/lib/types";
@@ -17,7 +17,7 @@ interface EditTaskDialogProps {
   onUpdate: (updatedTask: Task) => void;
 }
 
-export function EditTaskDialog({
+export const EditTaskDialog = memo(function EditTaskDialog({
   isOpen,
   onClose,
   task,
@@ -55,7 +55,7 @@ export function EditTaskDialog({
     }
   }, [task]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task || !title.trim()) {
       setError("Title is required");
@@ -100,7 +100,7 @@ export function EditTaskDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [task, title, description, dueDate, priority, checkTaskForAlert, onUpdate, onClose]);
 
   if (!task) return null;
 
@@ -232,7 +232,7 @@ export function EditTaskDialog({
                   />
                 </div>
 
-                <div>
+                <div className="relative" style={{ position: "relative", zIndex: 10, isolation: "isolate" }}>
                   <label
                     htmlFor="edit-due-date"
                     className="block text-xs sm:text-sm font-bold text-black dark:text-white mb-1.5"
@@ -297,4 +297,6 @@ export function EditTaskDialog({
       )}
     </AnimatePresence>
   );
-}
+});
+
+EditTaskDialog.displayName = "EditTaskDialog";

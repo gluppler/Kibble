@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { markUserInteraction } from "@/lib/interaction-detector";
@@ -11,7 +11,7 @@ interface CreateBoardDialogProps {
   onCreate: (title: string) => Promise<void>;
 }
 
-export function CreateBoardDialog({
+export const CreateBoardDialog = memo(function CreateBoardDialog({
   isOpen,
   onClose,
   onCreate,
@@ -20,7 +20,7 @@ export function CreateBoardDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -39,7 +39,7 @@ export function CreateBoardDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [title, onCreate, onClose]);
 
   return (
     <AnimatePresence>
@@ -132,4 +132,6 @@ export function CreateBoardDialog({
       )}
     </AnimatePresence>
   );
-}
+});
+
+CreateBoardDialog.displayName = "CreateBoardDialog";

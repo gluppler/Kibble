@@ -61,7 +61,12 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ board });
+    return NextResponse.json({ board }, {
+      headers: {
+        "Cache-Control": "private, max-age=5, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     logError("Error fetching user board:", error);
     return NextResponse.json(

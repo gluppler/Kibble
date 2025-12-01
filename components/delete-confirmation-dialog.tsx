@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -13,7 +14,7 @@ interface DeleteConfirmationDialogProps {
   loading?: boolean;
 }
 
-export function DeleteConfirmationDialog({
+export const DeleteConfirmationDialog = memo(function DeleteConfirmationDialog({
   isOpen,
   onClose,
   onConfirm,
@@ -96,4 +97,6 @@ export function DeleteConfirmationDialog({
       )}
     </AnimatePresence>
   );
-}
+});
+
+DeleteConfirmationDialog.displayName = "DeleteConfirmationDialog";

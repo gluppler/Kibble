@@ -50,15 +50,21 @@ function normalizeString(str: string | null | undefined): string {
 /**
  * Checks if a string matches a search query
  * 
+ * Optimized for 2 vCores: Early exit, single normalization, cached query normalization
+ * 
  * @param text - Text to search in
- * @param query - Search query
+ * @param query - Search query (should be pre-normalized for better performance)
+ * @param normalizedQuery - Pre-normalized query (optional, for performance)
  * @returns True if text contains query (case-insensitive)
  */
-function matchesQuery(text: string | null | undefined, query: string): boolean {
+function matchesQuery(text: string | null | undefined, query: string, normalizedQuery?: string): boolean {
   if (!query) return true; // Empty query matches everything
+  if (!text) return false; // Early exit for null/undefined text
+  
+  // Use pre-normalized query if provided (avoids redundant toLowerCase calls)
+  const queryToMatch = normalizedQuery ?? normalizeString(query);
   const normalizedText = normalizeString(text);
-  const normalizedQuery = normalizeString(query);
-  return normalizedText.includes(normalizedQuery);
+  return normalizedText.includes(queryToMatch);
 }
 
 /**
@@ -97,19 +103,27 @@ export function searchTasks(
     return filtered;
   }
 
-  // Normalize query once for priority matching
+  // Normalize query once for priority matching (optimized for 2 vCores)
   const normalizedQuery = query.toLowerCase();
+  const hasHighPriority = normalizedQuery.includes("high priority");
+  const hasNormal = normalizedQuery.includes("normal");
+  const hasPriority = normalizedQuery.includes("priority");
   
-  // Search in task fields
+  // Search in task fields with optimized early exits
   return filtered.filter((task) => {
+    // Early exit if title matches (most common case)
+    if (matchesQuery(task.title, query, normalizedQuery)) return true;
+    
+    // Check description only if title didn't match
+    if (matchesQuery(task.description, query, normalizedQuery)) return true;
+    
+    // Priority matching (optimized with pre-computed flags)
     const priority = (task.priority as "normal" | "high") || "normal";
-    return (
-      matchesQuery(task.title, query) ||
-      matchesQuery(task.description, query) ||
-      (normalizedQuery.includes("high priority") && priority === "high") ||
-      (normalizedQuery.includes("normal") && priority === "normal") ||
-      normalizedQuery.includes("priority")
-    );
+    if (hasHighPriority && priority === "high") return true;
+    if (hasNormal && priority === "normal") return true;
+    if (hasPriority) return true;
+    
+    return false;
   });
 }
 
@@ -136,9 +150,10 @@ export function searchBoards<T extends { id: string; title: string }>(
     return boards;
   }
 
-  // Search in board title
+  // Search in board title (optimized for 2 vCores)
+  const normalizedQuery = query ? query.toLowerCase() : "";
   return boards.filter((board) => {
-    return matchesQuery(board.title, query);
+    return matchesQuery(board.title, query, normalizedQuery);
   });
 }
 
@@ -213,8 +228,9 @@ export function searchArchivedBoards<T extends {
     return boards;
   }
 
-  // Search in board title
+  // Search in board title (optimized for 2 vCores)
+  const normalizedQuery = query.toLowerCase();
   return boards.filter((board) => {
-    return matchesQuery(board.title, query);
+    return matchesQuery(board.title, query, normalizedQuery);
   });
 }

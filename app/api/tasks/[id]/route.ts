@@ -288,13 +288,18 @@ export async function PATCH(
 
     // Only update if there's something to update
     if (Object.keys(updateData).length === 0) {
-      // Return existing task if no changes
+      // Return existing task if no changes (optimization: avoid unnecessary DB write)
       const duration = Date.now() - startTime;
       logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 200);
-      return NextResponse.json(existingTask);
+      return NextResponse.json(existingTask, {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
     }
 
-    // Update task
+    // Update task (only if there are changes to prevent unnecessary DB writes)
     const task = await db.task.update({
       where: { id },
       data: updateData,
@@ -348,7 +353,12 @@ export async function PATCH(
 
     const duration = Date.now() - startTime;
     logApiTiming(`/api/tasks/${id}`, "PATCH", duration, 200);
-    return NextResponse.json(task);
+    return NextResponse.json(task, {
+      headers: {
+        "Cache-Control": "private, max-age=2, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     logApiTiming(`/api/tasks/${id || "unknown"}`, "PATCH", duration, 500);

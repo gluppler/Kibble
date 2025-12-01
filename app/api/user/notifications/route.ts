@@ -69,11 +69,19 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({
-      notificationsEnabled: user.notificationsEnabled ?? true,
-      dueDateAlertsEnabled: user.dueDateAlertsEnabled ?? true,
-      completionAlertsEnabled: user.completionAlertsEnabled ?? true,
-    });
+    return NextResponse.json(
+      {
+        notificationsEnabled: user.notificationsEnabled ?? true,
+        dueDateAlertsEnabled: user.dueDateAlertsEnabled ?? true,
+        completionAlertsEnabled: user.completionAlertsEnabled ?? true,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=5, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error fetching notification preferences:", error);
     return NextResponse.json(
@@ -160,11 +168,19 @@ export async function PATCH(request: Request) {
         );
       }
 
-      return NextResponse.json({
-        notificationsEnabled: user.notificationsEnabled ?? true,
-        dueDateAlertsEnabled: user.dueDateAlertsEnabled ?? true,
-        completionAlertsEnabled: user.completionAlertsEnabled ?? true,
-      });
+      return NextResponse.json(
+        {
+          notificationsEnabled: user.notificationsEnabled ?? true,
+          dueDateAlertsEnabled: user.dueDateAlertsEnabled ?? true,
+          completionAlertsEnabled: user.completionAlertsEnabled ?? true,
+        },
+        {
+          headers: {
+            "Cache-Control": "private, max-age=5, must-revalidate",
+            "X-Content-Type-Options": "nosniff",
+          },
+        }
+      );
     }
 
     // Update user preferences
@@ -178,11 +194,19 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json({
-      notificationsEnabled: updatedUser.notificationsEnabled ?? true,
-      dueDateAlertsEnabled: updatedUser.dueDateAlertsEnabled ?? true,
-      completionAlertsEnabled: updatedUser.completionAlertsEnabled ?? true,
-    });
+    return NextResponse.json(
+      {
+        notificationsEnabled: updatedUser.notificationsEnabled ?? true,
+        dueDateAlertsEnabled: updatedUser.dueDateAlertsEnabled ?? true,
+        completionAlertsEnabled: updatedUser.completionAlertsEnabled ?? true,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     logError("Error updating notification preferences:", error);
     return NextResponse.json(

@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -85,6 +85,23 @@ export default function ArchivePage() {
   const isFetchingRef = useRef(false);
   const hasInitialLoadRef = useRef(false);
   const lastPathnameRef = useRef<string | null>(null);
+  
+  // Memoized filtered results for 2 vCores optimization
+  const filteredTasks = useMemo(() => {
+    if (activeTab !== "tasks") return [];
+    if (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority") {
+      return searchArchivedTasks(tasks, { query: searchQuery, filter: searchFilter });
+    }
+    return [];
+  }, [tasks, searchQuery, searchFilter, activeTab]);
+  
+  const filteredBoards = useMemo(() => {
+    if (activeTab !== "boards") return [];
+    if (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority") {
+      return searchArchivedBoards(boards, { query: searchQuery, filter: searchFilter });
+    }
+    return [];
+  }, [boards, searchQuery, searchFilter, activeTab]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -707,14 +724,7 @@ export default function ArchivePage() {
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner message="Loading your archived tasks…" fullScreen={false} />
                 </div>
-              ) : (() => {
-                // Filter tasks based on search and filter
-                // Note: "tasks" filter removed since we're already on Tasks tab
-                const filteredTasks = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")
-                  ? searchArchivedTasks(tasks, { query: searchQuery, filter: searchFilter })
-                  : [];
-                
-                return filteredTasks.length === 0 ? (
+              ) : filteredTasks.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <Archive className="mx-auto mb-4 text-black/20 dark:text-white/20" size={48} />
                   <p className="text-sm font-bold text-black/60 dark:text-white/60 mb-2">
@@ -812,8 +822,7 @@ export default function ArchivePage() {
                     </div>
                   ))}
                 </div>
-              );
-              })()}
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -827,14 +836,7 @@ export default function ArchivePage() {
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner message="Loading your archived boards…" fullScreen={false} />
                 </div>
-              ) : (() => {
-                // Filter boards based on search and filter
-                // Note: "boards" filter removed since we're already on Boards tab
-                const filteredBoards = (searchFilter === "all" || searchFilter === "high-priority" || searchFilter === "normal-priority")
-                  ? searchArchivedBoards(boards, { query: searchQuery, filter: searchFilter })
-                  : [];
-                
-                return filteredBoards.length === 0 ? (
+              ) : filteredBoards.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <Archive className="mx-auto mb-4 text-black/20 dark:text-white/20" size={48} />
                   <p className="text-sm font-bold text-black/60 dark:text-white/60 mb-2">
@@ -849,10 +851,11 @@ export default function ArchivePage() {
               ) : (
                 <div className="space-y-3">
                   {filteredBoards.map((board) => {
-                    const taskCount = board.columns.reduce(
-                      (sum, col) => sum + col.tasks.length,
-                      0
-                    );
+                    // Optimized for 2 vCores: Single pass to calculate task count
+                    let taskCount = 0;
+                    for (const col of board.columns) {
+                      taskCount += col.tasks.length;
+                    }
                     return (
                       <div
                         key={board.id}
@@ -919,8 +922,7 @@ export default function ArchivePage() {
                     );
                   })}
                 </div>
-              );
-              })()}
+              )}
             </motion.div>
           )}
         </AnimatePresence>

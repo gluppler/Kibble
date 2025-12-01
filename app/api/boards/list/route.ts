@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication, validateIdFormat } from "@/lib/permissions";
-import { logError } from "@/lib/logger";
+import { logError, logApiTiming } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -24,6 +24,7 @@ export const maxDuration = 30;
  * @returns {Promise<NextResponse>} JSON response with boards array
  */
 export async function GET() {
+  const startTime = Date.now();
   try {
     let session;
     try {
@@ -96,6 +97,8 @@ export async function GET() {
       updatedAt: board.updatedAt instanceof Date ? board.updatedAt : new Date(),
     }));
 
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/boards/list", "GET", duration, 200);
     // Return boards with security headers and 5 second cache
     return NextResponse.json(
       { boards: sanitizedBoards },
@@ -108,6 +111,8 @@ export async function GET() {
       }
     );
   } catch (error) {
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/boards/list", "GET", duration, 500);
     logError("Unexpected error fetching boards:", error);
     return NextResponse.json(
       { error: "Failed to fetch boards" },

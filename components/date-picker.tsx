@@ -9,11 +9,14 @@
  * - Supports both light and dark themes
  * - Mobile-friendly with touch support
  * - Accessible with proper ARIA labels
+ * - Popper positioning relative to input (no portal overlay)
+ * - Automatic position updates on scroll/resize/hover
+ * - Proper z-index layering without blocking the page
  */
 
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useRef, memo } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Calendar } from "lucide-react";
@@ -90,7 +93,7 @@ interface DatePickerProps {
  * 
  * Cross-browser compatible date and time picker with consistent icon visibility.
  */
-export function DatePickerInput({
+export const DatePickerInput = memo(function DatePickerInput({
   value,
   onChange,
   placeholder = "Select date and time",
@@ -100,6 +103,8 @@ export function DatePickerInput({
   minDate,
   maxDate,
 }: DatePickerProps) {
+  const datePickerRef = useRef<any>(null);
+  
   // Convert string value to Date object if needed
   const dateValue = value 
     ? typeof value === "string" 
@@ -110,9 +115,59 @@ export function DatePickerInput({
   // Validate date
   const validDate = dateValue && !isNaN(dateValue.getTime()) ? dateValue : null;
 
+  // Update picker position on scroll/resize/hover/mutation
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updatePosition = () => {
+      // Trigger position recalculation by dispatching resize event
+      // This forces react-datepicker's popper to recalculate position
+      window.dispatchEvent(new Event("resize"));
+    };
+
+    // Listen for scroll events to update position
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    
+    // Use MutationObserver to detect layout changes (e.g., column hover animations)
+    // Optimized to only watch for style/class changes that affect positioning
+    let observer: MutationObserver | null = null;
+    
+    if (typeof document !== "undefined" && document.body) {
+      observer = new MutationObserver((mutations) => {
+        // Only update if style or class attributes changed (layout-affecting changes)
+        const hasRelevantChanges = mutations.some(mutation => 
+          mutation.type === "attributes" && 
+          (mutation.attributeName === "style" || mutation.attributeName === "class")
+        );
+        
+        if (hasRelevantChanges) {
+          updatePosition();
+        }
+      });
+      
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["style", "class"],
+        childList: false, // Don't watch DOM mutations (too expensive)
+        subtree: true, // Watch all descendants for style/class changes
+      });
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    };
+  }, []);
+
   return (
-    <div className="w-full">
+    <div className="w-full relative" style={{ zIndex: 1 }}>
       <DatePicker
+        ref={datePickerRef}
         selected={validDate}
         onChange={onChange}
         showTimeSelect
@@ -130,7 +185,25 @@ export function DatePickerInput({
         popperClassName="date-picker-popper"
         calendarClassName="date-picker-calendar"
         popperPlacement="bottom-start"
+        onCalendarOpen={() => {
+          // Force position update when calendar opens
+          if (typeof window !== "undefined") {
+            setTimeout(() => {
+              window.dispatchEvent(new Event("resize"));
+            }, 0);
+          }
+        }}
+        onInputClick={() => {
+          // Update position when input is clicked (before calendar opens)
+          if (typeof window !== "undefined") {
+            setTimeout(() => {
+              window.dispatchEvent(new Event("resize"));
+            }, 100);
+          }
+        }}
       />
     </div>
   );
-}
+});
+
+DatePickerInput.displayName = "DatePickerInput";

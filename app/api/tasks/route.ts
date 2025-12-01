@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
 import { checkAuthentication, checkColumnOwnership } from "@/lib/permissions";
-import { logError } from "@/lib/logger";
+import { logError, logApiTiming } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
   try {
     const session = await getServerAuthSession();
     const { title, description, columnId, dueDate, priority } = await request.json();
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
     // Check authentication
     const authCheck = checkAuthentication(session);
     if (!authCheck.allowed) {
+      const duration = Date.now() - startTime;
+      logApiTiming("/api/tasks", "POST", duration, authCheck.statusCode || 401);
       return NextResponse.json(
         { error: authCheck.error },
         { status: authCheck.statusCode || 401 }
@@ -194,8 +197,18 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(task, { status: 201 });
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks", "POST", duration, 201);
+    return NextResponse.json(task, { 
+      status: 201,
+      headers: {
+        "Cache-Control": "private, max-age=2, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks", "POST", duration, 500);
     logError("Error creating task:", error);
     return NextResponse.json(
       { error: "Failed to create task" },

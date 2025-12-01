@@ -12,9 +12,9 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, memo } from "react";
 
-export function OrientationHandler() {
+export const OrientationHandler = memo(function OrientationHandler() {
   useEffect(() => {
     // Prevent zoom on orientation change (iOS Safari quirk)
     const handleOrientationChange = () => {
@@ -42,4 +42,6 @@ export function OrientationHandler() {
   }, []);
 
   return null;
-}
+});
+
+OrientationHandler.displayName = "OrientationHandler";

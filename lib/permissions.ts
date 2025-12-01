@@ -71,6 +71,79 @@ export function checkAuthentication(session: Session | null): PermissionResult {
 }
 
 /**
+ * Verifies that a user exists in the database.
+ * 
+ * This function checks if the user ID from the session actually exists in the database.
+ * This prevents foreign key constraint violations when creating resources that reference
+ * the user. This is critical for preventing errors when:
+ * - User was deleted but session still exists
+ * - Session has stale/invalid user ID
+ * - Race conditions during user deletion
+ * 
+ * Security Features:
+ * - Validates user ID format before database query
+ * - Uses parameterized queries via Prisma ORM
+ * - Logs security events for invalid user IDs
+ * - Returns generic error messages to prevent information leakage
+ * 
+ * @param userId - User ID from authenticated session
+ * @returns Promise resolving to permission result
+ * 
+ * @example
+ * ```typescript
+ * const userCheck = await checkUserExists(userId);
+ * if (!userCheck.allowed) {
+ *   return NextResponse.json({ error: userCheck.error }, { status: userCheck.statusCode });
+ * }
+ * ```
+ */
+export async function checkUserExists(userId: string): Promise<PermissionResult> {
+  try {
+    // Security: Validate input ID format
+    if (!validateIdFormat(userId, "userId")) {
+      return {
+        allowed: false,
+        error: "Invalid user ID",
+        statusCode: 400,
+      };
+    }
+
+    // Security: Prisma uses parameterized queries, preventing SQL injection
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true }, // Only select ID for existence check (minimal data)
+    });
+
+    if (!user) {
+      // Log security event for invalid user ID in session
+      logSecurityEvent({
+        type: "invalid_user_session",
+        userId: userId,
+        details: {
+          reason: "User ID in session does not exist in database",
+        },
+        timestamp: new Date(),
+      });
+
+      return {
+        allowed: false,
+        error: "Unauthorized: Invalid session",
+        statusCode: 401,
+      };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    logError("Error checking user existence:", error);
+    return {
+      allowed: false,
+      error: "Failed to verify user",
+      statusCode: 500,
+    };
+  }
+}
+
+/**
  * Validates the format of an ID to prevent injection attacks.
  * 
  * This function ensures that all IDs used in database queries follow a safe

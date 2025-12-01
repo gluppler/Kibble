@@ -37,9 +37,6 @@ import { EditTaskDialog } from "./edit-task-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { LayoutSelector } from "./layout-selector";
 import { useLayout } from "@/contexts/layout-context";
-import { BoardTableView } from "./board-table-view";
-import { BoardGridView } from "./board-grid-view";
-import { BoardListView } from "./board-list-view";
 import { useAlerts } from "@/contexts/alert-context";
 import { logError } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
@@ -47,6 +44,21 @@ import { SearchBar, type SearchFilter } from "@/components/search-bar";
 import { searchTasks } from "@/lib/search-utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { isInteracting } from "@/lib/interaction-detector";
+import dynamic from "next/dynamic";
+
+// Dynamic imports for heavy view components to reduce initial bundle size
+const BoardTableView = dynamic(() => import("./board-table-view").then(mod => ({ default: mod.BoardTableView })), {
+  loading: () => <div className="flex items-center justify-center p-8"><LoadingSpinner /></div>,
+  ssr: false,
+});
+const BoardGridView = dynamic(() => import("./board-grid-view").then(mod => ({ default: mod.BoardGridView })), {
+  loading: () => <div className="flex items-center justify-center p-8"><LoadingSpinner /></div>,
+  ssr: false,
+});
+const BoardListView = dynamic(() => import("./board-list-view").then(mod => ({ default: mod.BoardListView })), {
+  loading: () => <div className="flex items-center justify-center p-8"><LoadingSpinner /></div>,
+  ssr: false,
+});
 
 /**
  * Props for KanbanBoard component
@@ -426,11 +438,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       }
 
       // Calculate new order based on the column it was dropped on
-      const sortedCols = [...board.columns]
-        .filter((col): col is Column & { tasks: Task[]; order: number } => 
-          col !== null && typeof col.order === 'number'
-        )
-        .sort((a, b) => a.order - b.order);
+      // Optimized for 2 vCores: Filter and sort in single pass where possible
+      const validCols = board.columns.filter((col): col is Column & { tasks: Task[]; order: number } => 
+        col !== null && typeof col.order === 'number'
+      );
+      // Only sort if multiple columns (optimization)
+      const sortedCols = validCols.length > 1 
+        ? [...validCols].sort((a, b) => a.order - b.order)
+        : validCols;
       const draggedIndex = sortedCols.findIndex(col => col?.id === activeId);
       const overIndex = sortedCols.findIndex(col => col?.id === overId);
 
@@ -476,17 +491,20 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         setBoard((prevBoard) => {
           if (!prevBoard) return prevBoard;
           
-          const updatedBoard: Board = {
-            ...prevBoard,
-            columns: [...prevBoard.columns]
-              .filter(col => col && typeof col.order === 'number')
-              .sort((a, b) => {
+          // Optimized for 2 vCores: Only sort if multiple columns
+          const validCols = prevBoard.columns.filter(col => col && typeof col.order === 'number');
+          const sortedCols = validCols.length > 1
+            ? [...validCols].sort((a, b) => {
                 // Re-sort columns based on new order
                 if (a.id === activeId) return newOrder - b.order;
                 if (b.id === activeId) return a.order - newOrder;
                 return a.order - b.order;
               })
-              .map((col, index) => ({ ...col, order: index })),
+            : validCols;
+          
+          const updatedBoard: Board = {
+            ...prevBoard,
+            columns: sortedCols.map((col, index) => ({ ...col, order: index })),
           };
           return updatedBoard;
         });
@@ -521,12 +539,23 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       // Dropped directly on a column
       newColumnId = targetColumn.id;
       // Get max order in target column (excluding the task being moved)
+      // Optimized for 2 vCores: Early exit, single pass
       const validTasks = (targetColumn.tasks ?? []).filter((t: Task): t is Task => 
         t?.id !== taskId && typeof t.order === 'number'
       );
-      newOrder = validTasks.length > 0 
-        ? Math.max(...validTasks.map(t => t.order)) + 1 
-        : 0;
+      
+      if (validTasks.length === 0) {
+        newOrder = 0;
+      } else {
+        // Single pass to find max (more efficient than Math.max with spread)
+        let maxOrder = validTasks[0].order;
+        for (let i = 1; i < validTasks.length; i++) {
+          if (validTasks[i].order > maxOrder) {
+            maxOrder = validTasks[i].order;
+          }
+        }
+        newOrder = maxOrder + 1;
+      }
     } else {
       // Dropped on another task - find that task's column and position
       const overTaskResult = findTaskInBoard(board, overId);
@@ -534,9 +563,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         newColumnId = overTaskResult.column.id;
         
         // Get sorted tasks in target column (excluding the task being moved)
-        const targetTasks = (overTaskResult.column.tasks ?? [])
-          .filter((t): t is Task => t?.id !== taskId && typeof t.order === 'number')
-          .sort((a, b) => a.order - b.order);
+        // Optimized for 2 vCores: Early exit, check if sort needed
+        const targetTasksRaw = (overTaskResult.column.tasks ?? [])
+          .filter((t): t is Task => t?.id !== taskId && typeof t.order === 'number');
+        
+        // Only sort if multiple tasks (optimization)
+        const targetTasks = targetTasksRaw.length > 1
+          ? [...targetTasksRaw].sort((a, b) => a.order - b.order)
+          : targetTasksRaw;
         
         const overTaskIndex = targetTasks.findIndex(t => t.id === overId);
         
@@ -546,9 +580,18 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           newOrder = overTask.order;
         } else {
           // Fallback: add to end if target task not found
-          newOrder = targetTasks.length > 0 
-            ? Math.max(...targetTasks.map(t => t.order)) + 1 
-            : 0;
+          // Optimized for 2 vCores: Single pass to find max
+          if (targetTasks.length === 0) {
+            newOrder = 0;
+          } else {
+            let maxOrder = targetTasks[0].order;
+            for (let i = 1; i < targetTasks.length; i++) {
+              if (targetTasks[i].order > maxOrder) {
+                maxOrder = targetTasks[i].order;
+              }
+            }
+            newOrder = maxOrder + 1;
+          }
         }
       } else {
         // Invalid drop target, just return (no update possible)
@@ -585,9 +628,11 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         columns: prevBoard.columns.filter(Boolean).map(col => {
           if (col?.id === currentColumn.id) {
             // Remove task from source column and reorder remaining tasks
-            const updatedTasks = (col.tasks ?? [])
-              .filter((t): t is Task => t?.id !== taskId)
-              .map((t, index) => ({ ...t, order: index }));
+            // Optimized for 2 vCores: Only map if tasks exist
+            const filteredTasks = (col.tasks ?? []).filter((t): t is Task => t?.id !== taskId);
+            const updatedTasks = filteredTasks.length > 0
+              ? filteredTasks.map((t, index) => ({ ...t, order: index }))
+              : [];
             return { ...col, tasks: updatedTasks };
           } else if (col?.id === newColumnId) {
             // Add task to target column with correct locked status
@@ -611,7 +656,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
             }
             
             // Reorder all tasks in target column (create new objects for immutability)
-            const reorderedTasks = targetTasks.map((t, index) => ({ ...t, order: index }));
+            // Optimized for 2 vCores: Only map if tasks exist
+            const reorderedTasks = targetTasks.length > 0
+              ? targetTasks.map((t, index) => ({ ...t, order: index }))
+              : [];
             
             return { ...col, tasks: reorderedTasks };
           }
@@ -707,8 +755,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                   ...updatedTask,
                   columnId: targetColumnId,
                 }];
-                // Reorder tasks by their order property
-                const sortedTasks = updatedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+                // Reorder tasks by their order property (optimized: only sort if needed)
+                const sortedTasks = updatedTasks.length > 1 
+                  ? updatedTasks.sort((a, b) => (a.order || 0) - (b.order || 0))
+                  : updatedTasks;
                 return { ...col, tasks: sortedTasks };
               }
             }
@@ -719,8 +769,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
               const filteredTasks = (col.tasks ?? [])
                 .filter((t): t is Task => t?.id !== updatedTask.id);
               // Reorder remaining tasks to maintain proper order sequence
-              const reorderedTasks = filteredTasks
-                .map((t, index) => ({ ...t, order: index }));
+              // Optimized for 2 vCores: Only map if tasks exist
+              const reorderedTasks = filteredTasks.length > 0
+                ? filteredTasks.map((t, index) => ({ ...t, order: index }))
+                : [];
               return { ...col, tasks: reorderedTasks };
             }
             
@@ -778,7 +830,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
             const taskWithColumn = { ...newTask, column: col };
             return {
               ...col,
-              tasks: [...(col.tasks ?? []), taskWithColumn].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+              tasks: (col.tasks ?? []).length > 0
+                ? [...(col.tasks ?? []), taskWithColumn].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                : [taskWithColumn],
             };
           }
           return col;
@@ -929,14 +983,29 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   /**
    * Memoized sorted columns array
    * Sorts columns by their order property to maintain correct display order
+   * Optimized for 2 vCores: Check if already sorted before sorting
    */
   const sortedColumns = useMemo(() => {
     if (!board?.columns || !Array.isArray(board.columns)) return [];
-    return [...board.columns]
-      .filter((col): col is Column & { tasks: Task[]; order: number } => 
-        col !== null && typeof col.order === 'number'
-      )
-      .sort((a, b) => a.order - b.order);
+    
+    const validCols = board.columns.filter((col): col is Column & { tasks: Task[]; order: number } => 
+      col !== null && typeof col.order === 'number'
+    );
+    
+    // Early exit for empty or single column
+    if (validCols.length <= 1) return validCols;
+    
+    // Check if already sorted (optimization for 2 vCores)
+    let isSorted = true;
+    for (let i = 1; i < validCols.length; i++) {
+      if (validCols[i - 1].order > validCols[i].order) {
+        isSorted = false;
+        break;
+      }
+    }
+    
+    // Only sort if not already sorted
+    return isSorted ? validCols : [...validCols].sort((a, b) => a.order - b.order);
   }, [board]);
 
   /**
@@ -952,25 +1021,47 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       return board;
     }
 
-    // Filter tasks in each column
+    // Filter tasks in each column (optimized for 2 vCores: early exit, reference equality)
     const filteredColumns = board.columns.map((column) => {
       const allTasks = column.tasks ?? [];
+      
+      // Early exit if no tasks to filter
+      if (allTasks.length === 0) return column;
+      
       const filteredTasks = searchTasks(allTasks, {
         query: searchQuery,
         filter: searchFilter,
       });
       
-      // Reuse column if tasks unchanged
-      if (filteredTasks.length === allTasks.length && 
-          filteredTasks.every((task, idx) => task.id === allTasks[idx]?.id)) {
-        return column;
+      // Reuse column if tasks unchanged (reference equality check for performance)
+      // Optimized for 2 vCores: Early exit, single pass comparison
+      if (filteredTasks.length === allTasks.length) {
+        // Quick reference check first (fastest)
+        if (filteredTasks === allTasks) return column;
+        
+        // Single pass comparison (more efficient than every)
+        let allMatch = true;
+        for (let i = 0; i < filteredTasks.length; i++) {
+          if (filteredTasks[i]?.id !== allTasks[i]?.id) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) return column;
       }
       
       return { ...column, tasks: filteredTasks };
     });
 
-    // Reuse board if columns unchanged
-    if (filteredColumns.every((col, idx) => col === board.columns[idx])) {
+    // Reuse board if columns unchanged (optimized for 2 vCores: single pass)
+    let allColumnsMatch = true;
+    for (let i = 0; i < filteredColumns.length; i++) {
+      if (filteredColumns[i] !== board.columns[i]) {
+        allColumnsMatch = false;
+        break;
+      }
+    }
+    if (allColumnsMatch) {
       return board;
     }
 

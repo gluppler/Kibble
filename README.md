@@ -1,4 +1,8 @@
+> **SHORTCUT ASIA INTERNSHIP SUBMISSION 2025**
+
 # 🎓 Kibble
+
+**Version 1.0.0**
 
 **Kibble** is a modern, production-ready task management application designed for students and professionals. Built with Next.js 16, React 19, and TypeScript, Kibble provides a comprehensive solution for organizing work with class-based boards, intelligent alerts, priority tagging, and a beautiful Kanban interface.
 
@@ -8,6 +12,15 @@
 ![Prisma](https://img.shields.io/badge/Prisma-6.19-2D3748?style=flat-square&logo=prisma)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-336791?style=flat-square&logo=postgresql)
 ![Vitest](https://img.shields.io/badge/Vitest-4.0-6E9F18?style=flat-square&logo=vitest)
+
+## 🎥 Video Demo
+
+<div align="center">
+  <a href="https://youtube.com/watch?v=YOUR_VIDEO_ID" target="_blank">
+    <img src="https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg" alt="Kibble Demo Video" width="800" style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
+  </a>
+  <p><em>Click the image above to watch the demo video</em></p>
+</div>
 
 ## 📖 Overview
 
@@ -1037,7 +1050,7 @@ npm run test:coverage
 
 ### Vercel (Recommended)
 
-Kibble is optimized for Vercel serverless deployment with resource constraints in mind (4 vCores, 8GB RAM server, 0.5GB RAM, 8GB disk database).
+Kibble is optimized for Vercel serverless deployment with resource constraints in mind (2 vCores, 8GB RAM server, 0.5GB RAM, 8GB disk database).
 
 **Configuration** (`vercel.json`):
 ```json

@@ -90,7 +90,7 @@ export async function GET() {
       { boards },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Cache-Control": "private, max-age=5, must-revalidate",
           "X-Content-Type-Options": "nosniff",
         },
       }

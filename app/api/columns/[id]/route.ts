@@ -147,7 +147,12 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(updatedColumn);
+    return NextResponse.json(updatedColumn, {
+      headers: {
+        "Cache-Control": "private, max-age=2, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     logError("Error updating column:", error);
     return NextResponse.json(

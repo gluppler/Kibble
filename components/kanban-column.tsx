@@ -63,9 +63,24 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
   /**
    * Memoized sorted tasks list
    * Sorts tasks by their order property to maintain correct display order
+   * Optimized for 2 vCores: Skip sort if already sorted or single item
    */
   const sortedTasks = useMemo(() => {
-    return [...column.tasks].sort((a: Task, b: Task) => a.order - b.order);
+    const tasks = column.tasks ?? [];
+    // Early exit for empty or single item (no sort needed)
+    if (tasks.length <= 1) return tasks;
+    
+    // Check if already sorted (optimization for 2 vCores)
+    let isSorted = true;
+    for (let i = 1; i < tasks.length; i++) {
+      if (tasks[i - 1].order > tasks[i].order) {
+        isSorted = false;
+        break;
+      }
+    }
+    
+    // Only sort if not already sorted
+    return isSorted ? tasks : [...tasks].sort((a: Task, b: Task) => a.order - b.order);
   }, [column.tasks]);
 
   /**
@@ -179,9 +194,10 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
         width: '100%',
         minHeight: '200px',
         height: '100%',
-        borderWidth: '1px', // Consistent border width across themes
-        // Ensure proper touch handling for drag-and-drop
-        touchAction: 'none', // Prevent default touch behaviors to allow drag
+        borderWidth: '1px',
+        touchAction: 'none',
+        position: 'relative',
+        overflow: 'visible', // Allow date picker to overflow column boundaries
       }}
     >
       <div className="flex items-baseline justify-between mb-3 pb-2 border-b border-black/10 dark:border-white/10 flex-shrink-0">
@@ -219,7 +235,8 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
             onSubmit={handleAddTask} 
             onFocus={() => markUserInteraction()}
             onClick={() => markUserInteraction()}
-            className="space-y-2 flex-shrink-0 mt-2"
+            className="space-y-2 flex-shrink-0 mt-2 relative"
+            style={{ position: "relative", zIndex: 1, isolation: "isolate" }}
           >
             {taskError && (
               <div className="p-2 bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 rounded-lg text-xs text-black dark:text-white font-bold">
@@ -250,6 +267,8 @@ export const KanbanColumn = memo(function KanbanColumn({ column, onTaskAdded, on
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
+              className="relative"
+              style={{ position: "relative", zIndex: 10, isolation: "isolate" }}
             >
               <DatePickerInput
                 value={taskDueDate}

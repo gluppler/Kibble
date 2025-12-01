@@ -561,6 +561,30 @@ export function Sidebar({
   }, [boards, localSearchQuery, searchFilter]);
 
   /**
+   * Memoized active board lookup to avoid repeated find() calls
+   * Optimized for 2 vCores: single pass lookup
+   */
+  const activeBoard = useMemo(() => {
+    if (!activeBoardId) return null;
+    // Single pass lookup (more efficient than find for large arrays)
+    for (let i = 0; i < filteredBoards.length; i++) {
+      if (filteredBoards[i].id === activeBoardId) {
+        return filteredBoards[i];
+      }
+    }
+    return null;
+  }, [filteredBoards, activeBoardId]);
+
+  /**
+   * Memoized board IDs array for SortableContext (optimized to avoid repeated map calls)
+   */
+  const boardIds = useMemo(() => {
+    return localSearchQuery.trim() === "" 
+      ? boards.map((b) => b.id)
+      : filteredBoards.map((b) => b.id);
+  }, [boards, filteredBoards, localSearchQuery]);
+
+  /**
    * Shared sidebar content component
    * Note: SearchBar and filtered boards are rendered outside useMemo to prevent input focus loss
    */
@@ -809,7 +833,7 @@ export function Sidebar({
             }}
           >
             <SortableContext
-              items={localSearchQuery.trim() === "" ? boards.map((b) => b.id) : []}
+              items={boardIds}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-1.5">
@@ -851,13 +875,9 @@ export function Sidebar({
               </div>
             </SortableContext>
             <DragOverlay>
-              {activeBoardId ? (
+              {activeBoard ? (
                 <div className="opacity-50">
-                  {filteredBoards.find((b) => b.id === activeBoardId) && (
-                    <BoardItem
-                      board={filteredBoards.find((b) => b.id === activeBoardId)!}
-                    />
-                  )}
+                  <BoardItem board={activeBoard} />
                 </div>
               ) : null}
             </DragOverlay>
@@ -1015,7 +1035,7 @@ export function Sidebar({
                   }}
                 >
                   <SortableContext
-                    items={localSearchQuery.trim() === "" ? boards.map((b) => b.id) : []}
+                    items={boardIds}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-1.5">
@@ -1058,13 +1078,9 @@ export function Sidebar({
                     </div>
                   </SortableContext>
                   <DragOverlay>
-                    {activeBoardId ? (
+                    {activeBoard ? (
                       <div className="opacity-50">
-                        {filteredBoards.find((b) => b.id === activeBoardId) && (
-                          <BoardItem
-                            board={filteredBoards.find((b) => b.id === activeBoardId)!}
-                          />
-                        )}
+                        <BoardItem board={activeBoard} />
                       </div>
                     ) : null}
                   </DragOverlay>

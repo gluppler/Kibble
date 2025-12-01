@@ -446,8 +446,21 @@ select {
   }
   
   /* React DatePicker custom styles for theme compatibility */
+  /* Use fixed positioning to overlay on top of column without centering */
   .date-picker-popper {
     z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  /* Ensure popper is positioned correctly relative to input */
+  .react-datepicker-popper {
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  /* Ensure popper container is positioned correctly */
+  .react-datepicker-popper[data-popper-placement] {
+    position: fixed !important;
   }
   
   .date-picker-calendar {
@@ -456,6 +469,24 @@ select {
     border-radius: 0.5rem !important;
     font-family: var(--font-inter) !important;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    position: relative !important;
+    width: auto !important;
+    min-width: 280px !important;
+    max-width: 100vw !important;
+    height: auto !important;
+    max-height: 400px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    overflow: hidden !important;
+  }
+  
+  /* Ensure calendar and time picker are aligned horizontally */
+  .react-datepicker__month-container {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    max-height: 400px !important;
   }
   
   /* Dark theme for date picker */
@@ -479,6 +510,18 @@ select {
   html.dark .react-datepicker__header {
     background: black !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* Date picker current month/year text (e.g., "December 2025") */
+  .react-datepicker__current-month {
+    color: black !important;
+    font-weight: bold !important;
+  }
+
+  .dark .react-datepicker__current-month,
+  [data-theme="dark"] .react-datepicker__current-month,
+  html.dark .react-datepicker__current-month {
+    color: white !important;
   }
   
   /* Date picker navigation arrows */
@@ -541,9 +584,28 @@ select {
     font-weight: bold !important;
   }
   
-  /* Time picker */
+  /* Time picker container - fixed width and height to prevent layout shifts and ensure alignment */
   .react-datepicker__time-container {
     border-left: 1px solid rgba(0, 0, 0, 0.1) !important;
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+    height: auto !important;
+    max-height: 400px !important;
+    position: relative !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-self: flex-start !important;
+  }
+  
+  /* Ensure time container aligns properly with calendar - fixed height */
+  .react-datepicker__time-container .react-datepicker__time {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
   }
   
   .dark .react-datepicker__time-container,
@@ -551,30 +613,115 @@ select {
   html.dark .react-datepicker__time-container {
     border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
   }
+
+  /* Time picker header/label (e.g., "Time") - correct class name from react-datepicker */
+  .react-datepicker-time__header {
+    color: black !important;
+    font-weight: bold !important;
+    background: white !important;
+  }
+
+  .dark .react-datepicker-time__header,
+  [data-theme="dark"] .react-datepicker-time__header,
+  html.dark .react-datepicker-time__header {
+    color: white !important;
+    background: black !important;
+  }
+
+  /* Time picker header text specifically - .react-datepicker__time-name */
+  .react-datepicker__time-name {
+    color: black !important;
+    font-weight: bold !important;
+  }
+
+  .dark .react-datepicker__time-name,
+  [data-theme="dark"] .react-datepicker__time-name,
+  html.dark .react-datepicker__time-name {
+    color: white !important;
+  }
+
+  /* Also target nested time-name within time-header */
+  .react-datepicker-time__header .react-datepicker__time-name {
+    color: black !important;
+    font-weight: bold !important;
+  }
+
+  .dark .react-datepicker-time__header .react-datepicker__time-name,
+  [data-theme="dark"] .react-datepicker-time__header .react-datepicker__time-name,
+  html.dark .react-datepicker-time__header .react-datepicker__time-name {
+    color: white !important;
+  }
+
+  /* Additional selector for time container header */
+  .react-datepicker__time-container .react-datepicker-time__header {
+    color: black !important;
+    background: white !important;
+  }
+
+  .dark .react-datepicker__time-container .react-datepicker-time__header,
+  [data-theme="dark"] .react-datepicker__time-container .react-datepicker-time__header,
+  html.dark .react-datepicker__time-container .react-datepicker-time__header {
+    color: white !important;
+    background: black !important;
+  }
   
+  /* Time list - ensure proper scrolling and visibility */
+  .react-datepicker__time-list {
+    height: 200px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    list-style: none !important;
+  }
+  
+  .dark .react-datepicker__time-list,
+  [data-theme="dark"] .react-datepicker__time-list,
+  html.dark .react-datepicker__time-list {
+    background: black !important;
+  }
+  
+  /* Time list items - ensure visibility and proper styling */
   .react-datepicker__time-list-item {
     color: black !important;
+    background: white !important;
+    padding: 8px 12px !important;
+    height: auto !important;
+    min-height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    border: none !important;
   }
   
   .dark .react-datepicker__time-list-item,
   [data-theme="dark"] .react-datepicker__time-list-item,
   html.dark .react-datepicker__time-list-item {
     color: white !important;
+    background: black !important;
   }
   
   .react-datepicker__time-list-item:hover {
     background: rgba(0, 0, 0, 0.1) !important;
+    color: black !important;
   }
   
   .dark .react-datepicker__time-list-item:hover,
   [data-theme="dark"] .react-datepicker__time-list-item:hover,
   html.dark .react-datepicker__time-list-item:hover {
     background: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
   }
   
   .react-datepicker__time-list-item--selected {
     background: black !important;
     color: white !important;
+    font-weight: bold !important;
   }
   
   .dark .react-datepicker__time-list-item--selected,
@@ -582,5 +729,104 @@ select {
   html.dark .react-datepicker__time-list-item--selected {
     background: white !important;
     color: black !important;
+    font-weight: bold !important;
+  }
+  
+  /* Ensure time list items are never hidden */
+  .react-datepicker__time-list-item:not(.react-datepicker__time-list-item--disabled) {
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: flex !important;
+  }
+  
+  /* Prevent time picker from being clipped - but constrain height */
+  .react-datepicker__time-box {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* Ensure popper uses fixed positioning to overlay on column */
+  .date-picker-popper[data-popper-placement] {
+    position: fixed !important;
+  }
+  
+  /* Prevent portal overlay from appearing (portal mode creates black overlay) */
+  .react-datepicker__portal {
+    display: none !important;
+  }
+  
+  /* Prevent any backdrop/overlay from appearing */
+  .react-datepicker__portal > div {
+    background: transparent !important;
+    pointer-events: none !important;
+  }
+  
+  /* Ensure popper container overlays on top of column */
+  .react-datepicker-popper {
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  /* Ensure popper wrapper doesn't block interactions */
+  .react-datepicker-wrapper {
+    position: relative !important;
+    display: inline-block !important;
+    width: 100% !important;
+  }
+  
+  /* Ensure date picker calendar is positioned correctly - fixed size */
+  .react-datepicker {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: row !important;
+    height: auto !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
+    align-items: flex-start !important;
+  }
+  
+  /* Ensure month container has fixed height */
+  .react-datepicker__month {
+    height: auto !important;
+    max-height: 300px !important;
+    overflow: visible !important;
+  }
+  
+  /* Ensure month wrapper doesn't stretch */
+  .react-datepicker__month-wrapper {
+    height: auto !important;
+    max-height: 300px !important;
+  }
+  
+  /* Prevent any backdrop from appearing */
+  .react-datepicker__portal .react-datepicker__triangle {
+    display: none !important;
+  }
+  
+  /* Ensure popper is not creating a full-screen overlay */
+  .react-datepicker-popper[role="dialog"] {
+    position: fixed !important;
+    inset: auto !important;
+  }
+  
+  /* Fix time picker alignment - ensure it doesn't get misaligned */
+  .react-datepicker__time-container,
+  .react-datepicker__time-box {
+    vertical-align: top !important;
+  }
+  
+  /* Ensure time list is properly aligned - fixed height */
+  .react-datepicker__time-list {
+    vertical-align: top !important;
+    display: block !important;
+    height: 200px !important;
+    max-height: 200px !important;
+    min-height: 200px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
   }
 }

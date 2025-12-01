@@ -79,7 +79,12 @@ export async function GET(
 
     const duration = Date.now() - startTime;
     logApiTiming(`/api/boards/${id}`, "GET", duration, 200);
-    return NextResponse.json(board);
+    return NextResponse.json(board, {
+      headers: {
+        "Cache-Control": "private, max-age=5, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     logApiTiming(`/api/boards/${id || "unknown"}`, "GET", duration, 500);
@@ -167,7 +172,12 @@ export async function PATCH(
 
     const duration = Date.now() - startTime;
     logApiTiming(`/api/boards/${id}`, "PATCH", duration, 200);
-    return NextResponse.json(board);
+    return NextResponse.json(board, {
+      headers: {
+        "Cache-Control": "private, max-age=5, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     logApiTiming(`/api/boards/${id || "unknown"}`, "PATCH", duration, 500);

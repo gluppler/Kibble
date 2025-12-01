@@ -113,7 +113,15 @@ export async function POST(request: Request) {
 
     const duration = Date.now() - startTime;
     logApiTiming("/api/boards/reorder", "POST", duration, 200);
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { success: true },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=2, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
+    );
   } catch (error) {
     const duration = Date.now() - startTime;
     logApiTiming("/api/boards/reorder", "POST", duration, 500);

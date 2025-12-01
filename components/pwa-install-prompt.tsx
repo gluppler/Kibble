@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { useSession } from "next-auth/react";
 import { logError } from "@/lib/logger";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,7 +27,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-export function PWAInstallPrompt() {
+export const PWAInstallPrompt = memo(function PWAInstallPrompt() {
   const { data: session } = useSession();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -149,7 +149,7 @@ export function PWAInstallPrompt() {
     };
   }, [notificationsEnabled]);
 
-  const handleInstallClick = async () => {
+  const handleInstallClick = useCallback(async () => {
     if (!deferredPrompt) return;
 
     try {
@@ -174,13 +174,13 @@ export function PWAInstallPrompt() {
         logError("Error showing install prompt:", error);
       }
     }
-  };
+  }, [deferredPrompt]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setShowPrompt(false);
     // Remember dismissal for 7 days
     localStorage.setItem("pwa-install-dismissed", Date.now().toString());
-  };
+  }, []);
 
   // Don't show if:
   // - Already installed or in standalone mode
@@ -286,4 +286,6 @@ export function PWAInstallPrompt() {
       )}
     </AnimatePresence>
   );
-}
+});
+
+PWAInstallPrompt.displayName = "PWAInstallPrompt";

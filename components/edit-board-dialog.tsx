@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
@@ -14,7 +14,7 @@ interface EditBoardDialogProps {
   onUpdate: () => void;
 }
 
-export function EditBoardDialog({
+export const EditBoardDialog = memo(function EditBoardDialog({
   isOpen,
   onClose,
   boardTitle,
@@ -31,7 +31,7 @@ export function EditBoardDialog({
     }
   }, [boardTitle]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError("Title is required");
@@ -60,7 +60,7 @@ export function EditBoardDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [title, boardId, onUpdate, onClose]);
 
   return (
     <AnimatePresence>
@@ -155,4 +155,6 @@ export function EditBoardDialog({
       )}
     </AnimatePresence>
   );
-}
+});
+
+EditBoardDialog.displayName = "EditBoardDialog";

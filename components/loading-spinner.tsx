@@ -13,6 +13,7 @@
 
 "use client";
 
+import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
 
 interface LoadingSpinnerProps {
@@ -42,18 +43,18 @@ interface LoadingSpinnerProps {
  * Displays a centered loading spinner with optional message.
  * Includes smooth fade-in animation for better UX.
  */
-export function LoadingSpinner({
+export const LoadingSpinner = memo(function LoadingSpinner({
   message,
   size = "default",
   fullScreen = true,
   className = "",
 }: LoadingSpinnerProps) {
-  // Size classes based on size prop
-  const sizeClasses = {
+  // Size classes based on size prop (memoized for performance)
+  const sizeClasses = useMemo(() => ({
     small: "w-8 h-8 sm:w-10 sm:h-10",
     default: "w-10 h-10 sm:w-12 sm:h-12",
     large: "w-12 h-12 sm:w-16 sm:h-16",
-  };
+  }), []);
 
   const spinner = (
     <motion.div
@@ -87,4 +88,6 @@ export function LoadingSpinner({
   }
 
   return spinner;
-}
+});
+
+LoadingSpinner.displayName = "LoadingSpinner";

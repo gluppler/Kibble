@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo, memo } from "react";
+import { useEffect, useState, useMemo, memo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, X, AlertCircle, Calendar, CheckCircle2 } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -23,7 +23,7 @@ import { logError, logWarn } from "@/lib/logger";
 import { deduplicatedFetch } from "@/lib/request-deduplication";
 import type { Alert } from "@/lib/alert-utils";
 
-export function NotificationSystem() {
+export const NotificationSystem = memo(function NotificationSystem() {
   const { data: session } = useSession();
   const { 
     alerts, 
@@ -39,7 +39,7 @@ export function NotificationSystem() {
   /**
    * Periodic check for due date alerts
    * 
-   * Checks all tasks across all boards every 5 minutes for due date alerts.
+   * Checks all tasks across all boards every 10 minutes for due date alerts.
    * Uses the alert context to check and add alerts automatically.
    * 
    * Permission: Only checks tasks from user's own boards (enforced by API routes).
@@ -50,6 +50,65 @@ export function NotificationSystem() {
    * 
    * Security: Only runs when user is authenticated (session exists).
    */
+  const checkDueDates = useCallback(async () => {
+    try {
+      // Fetch all tasks with due dates in a single API call
+      // This avoids N+1 queries (fetching each board individually)
+      // Uses request deduplication to prevent duplicate concurrent requests
+      const tasksRes = await deduplicatedFetch("/api/tasks/alerts");
+      
+      if (!tasksRes.ok) {
+        // If unauthorized, stop checking
+        if (tasksRes.status === 401 || tasksRes.status === 403) {
+          logWarn("Unauthorized access to tasks - stopping alert checks");
+          return;
+        }
+        return;
+      }
+
+      // Read response body (deduplicatedFetch already handles cloning)
+      const data = await tasksRes.json();
+      
+      // Safety check: ensure data is valid and has tasks array
+      if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
+        logWarn("Invalid response from /api/tasks/alerts - expected tasks array");
+        return;
+      }
+
+      const { tasks } = data;
+
+      // Process tasks in batches to prevent UI blocking (optimized for 2 vCores)
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+        const batch = tasks.slice(i, i + BATCH_SIZE);
+        
+        // Process batch sequentially for better CPU utilization on 2 vCores
+        for (const task of batch) {
+          // Safety check: ensure task is valid object
+          if (!task || typeof task !== 'object') continue;
+          
+          if (task.dueDate && !task.locked) {
+            try {
+              checkTaskForAlert(task);
+            } catch (taskError) {
+              // Log error but continue processing other tasks
+              logError("Error checking task for alert:", taskError);
+            }
+          }
+        }
+        
+        // Yield to event loop between batches to prevent UI blocking
+        if (i + BATCH_SIZE < tasks.length) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      setHasChecked(true);
+    } catch (error) {
+      logError("Failed to check due dates:", error);
+    }
+  }, [checkTaskForAlert]);
+
   useEffect(() => {
     // Don't check alerts if user is not authenticated
     // This prevents API calls on auth pages
@@ -62,65 +121,6 @@ export function NotificationSystem() {
         return;
       }
     }
-
-    const checkDueDates = async () => {
-      try {
-        // Fetch all tasks with due dates in a single API call
-        // This avoids N+1 queries (fetching each board individually)
-        // Uses request deduplication to prevent duplicate concurrent requests
-        const tasksRes = await deduplicatedFetch("/api/tasks/alerts");
-        
-        if (!tasksRes.ok) {
-          // If unauthorized, stop checking
-          if (tasksRes.status === 401 || tasksRes.status === 403) {
-            logWarn("Unauthorized access to tasks - stopping alert checks");
-            return;
-          }
-          return;
-        }
-
-        // Read response body (deduplicatedFetch already handles cloning)
-        const data = await tasksRes.json();
-        
-        // Safety check: ensure data is valid and has tasks array
-        if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
-          logWarn("Invalid response from /api/tasks/alerts - expected tasks array");
-          return;
-        }
-
-        const { tasks } = data;
-
-        // Process tasks in batches to prevent UI blocking
-        const BATCH_SIZE = 20;
-        for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-          const batch = tasks.slice(i, i + BATCH_SIZE);
-          
-          // Process batch
-          for (const task of batch) {
-            // Safety check: ensure task is valid object
-            if (!task || typeof task !== 'object') continue;
-            
-            if (task.dueDate && !task.locked) {
-              try {
-                checkTaskForAlert(task);
-              } catch (taskError) {
-                // Log error but continue processing other tasks
-                logError("Error checking task for alert:", taskError);
-              }
-            }
-          }
-          
-          // Yield to event loop between batches to prevent UI blocking
-          if (i + BATCH_SIZE < tasks.length) {
-            await new Promise((resolve) => setTimeout(resolve, 0));
-          }
-        }
-
-        setHasChecked(true);
-      } catch (error) {
-        logError("Failed to check due dates:", error);
-      }
-    };
 
     // Only check if session is authenticated AND preferences are loaded
     // Critical: Wait for preferences to load before checking alerts
@@ -140,7 +140,7 @@ export function NotificationSystem() {
         return () => clearInterval(interval);
       }
     }
-  }, [session, checkTaskForAlert, preferencesLoaded, notificationPreferences.notificationsEnabled, notificationPreferences.dueDateAlertsEnabled]);
+  }, [session, checkDueDates, preferencesLoaded, notificationPreferences.notificationsEnabled, notificationPreferences.dueDateAlertsEnabled]);
 
   /**
    * Show notification panel when new alerts arrive
@@ -286,7 +286,9 @@ export function NotificationSystem() {
       )}
     </div>
   );
-}
+});
+
+NotificationSystem.displayName = "NotificationSystem";
 
 /**
  * AlertItem Component

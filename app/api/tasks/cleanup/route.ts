@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerAuthSession } from "@/server/auth";
-import { logError } from "@/lib/logger";
+import { logError, logApiTiming } from "@/lib/logger";
 
 // Optimize for Vercel serverless
 export const runtime = "nodejs";
@@ -17,10 +17,13 @@ export const maxDuration = 30;
  * Archived tasks are hidden from the main board view but can be restored
  */
 export async function POST(request: Request) {
+  const startTime = Date.now();
   try {
     const session = await getServerAuthSession();
 
     if (!session?.user?.id) {
+      const duration = Date.now() - startTime;
+      logApiTiming("/api/tasks/cleanup", "POST", duration, 401);
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -68,12 +71,16 @@ export async function POST(request: Request) {
       });
     }
 
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks/cleanup", "POST", duration, 200);
     return NextResponse.json({
       success: true,
       archivedCount: tasksToArchive.length,
       message: `Archived ${tasksToArchive.length} task(s) that were in Done column for more than 24 hours`,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks/cleanup", "POST", duration, 500);
     logError("Error archiving tasks:", error);
     return NextResponse.json(
       { error: "Failed to archive tasks" },
@@ -87,10 +94,13 @@ export async function POST(request: Request) {
  * Returns tasks that are approaching the 24-hour mark
  */
 export async function GET(request: Request) {
+  const startTime = Date.now();
   try {
     const session = await getServerAuthSession();
 
     if (!session?.user?.id) {
+      const duration = Date.now() - startTime;
+      logApiTiming("/api/tasks/cleanup", "GET", duration, 401);
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -145,11 +155,15 @@ export async function GET(request: Request) {
       })
       .filter((task): task is NonNullable<typeof task> => task !== null);
 
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks/cleanup", "GET", duration, 200);
     return NextResponse.json({
       tasks: tasksWithArchiveInfo,
       count: tasksWithArchiveInfo.length,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    logApiTiming("/api/tasks/cleanup", "GET", duration, 500);
     logError("Error fetching archive info:", error);
     return NextResponse.json(
       { error: "Failed to fetch archive info" },

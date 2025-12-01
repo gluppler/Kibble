@@ -173,7 +173,13 @@ export async function DELETE(request: Request) {
         success: true,
         message: "Account deleted successfully" 
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
     );
   } catch (error) {
     // Fail securely - log error internally but return generic message
