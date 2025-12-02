@@ -16,8 +16,8 @@
 ## 🎥 Video Demo
 
 <div align="center">
-  <a href="https://youtube.com/watch?v=YOUR_VIDEO_ID" target="_blank">
-    <img src="https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg" alt="Kibble Demo Video" width="800" style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
+  <a href="https://youtube.com/watch?v=eFdU9BW2Mto" target="_blank">
+    <img src="https://img.youtube.com/vi/eFdU9BW2Mto/maxresdefault.jpg" alt="Kibble Demo Video" width="800" style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
   </a>
   <p><em>Click the image above to watch the demo video</em></p>
 </div>
